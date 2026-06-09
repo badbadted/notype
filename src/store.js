@@ -17,6 +17,7 @@ const defaults = {
 
   // 輸入方式
   copyToClipboard: false, // true=只複製到剪貼簿不自動貼上
+  autoSubmit: false, // true=貼上後自動按 Enter 送出（聊天視窗用）
 
   // 系統
   hotkey: 'F9', // Alt+Space 被 Windows 保留無法註冊，預設改 F9 單鍵按住說話

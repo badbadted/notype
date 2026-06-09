@@ -6,7 +6,7 @@ const { startRecording, stopRecording, saveAudioBuffer, cleanupTempAudio } = req
 const { showOverlay, hideOverlay } = require('./overlay');
 const { transcribe } = require('./api/stt');
 const { polishText } = require('./api/llm');
-const { typeText, copyToClipboard } = require('./typer');
+const { typeText, copyToClipboard, pressEnter } = require('./typer');
 const { log } = require('./logger');
 
 const user32 = koffi.load('user32.dll');
@@ -119,7 +119,13 @@ async function handleAudioData(audioBuffer) {
       showOverlay('done', '已複製到剪貼簿');
     } else {
       await typeText(finalText);
-      showOverlay('done', '已貼上');
+      // 說完自動送出：貼上後按 Enter（聊天視窗用）
+      if (store.get('autoSubmit') === true) {
+        await pressEnter();
+        showOverlay('done', '已送出');
+      } else {
+        showOverlay('done', '已貼上');
+      }
     }
     hideOverlay(1500);
   } catch (err) {

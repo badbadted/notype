@@ -13,7 +13,9 @@ async function load() {
   $('llmCustomPrompt').value = s.llmCustomPrompt || '';
   setToggle('llmEnabled', s.llmEnabled);
   setToggle('launchAtStartup', s.launchAtStartup);
+  setToggle('autoSubmit', s.autoSubmit);
   setRadio(s.copyToClipboard === true);
+  syncAutoSubmitDim();
   syncKeyField();
   syncCustomPrompt();
   syncLlmDim();
@@ -44,6 +46,15 @@ function setToggle(id, on) { $(id).classList.toggle('on', on === true); }
 function setRadio(copy) {
   $('optCopy').classList.toggle('sel', copy);
   $('optType').classList.toggle('sel', !copy);
+  syncAutoSubmitDim();
+}
+function syncAutoSubmitDim() {
+  // 「只複製到剪貼簿」模式沒有貼上動作，自動送出不適用 → 淡化
+  const copyMode = $('optCopy').classList.contains('sel');
+  const row = $('autoSubmitRow');
+  if (!row) return;
+  row.style.opacity = copyMode ? '.4' : '1';
+  row.style.pointerEvents = copyMode ? 'none' : 'auto';
 }
 
 function activeKeyName() { return getSeg('sttSeg') === 'groq' ? 'groqApiKey' : 'openaiApiKey'; }
@@ -81,6 +92,7 @@ $('llmSeg').addEventListener('click', (e) => {
 });
 $('llmEnabled').addEventListener('click', function () { this.classList.toggle('on'); syncLlmDim(); });
 $('launchAtStartup').addEventListener('click', function () { this.classList.toggle('on'); });
+$('autoSubmit').addEventListener('click', function () { this.classList.toggle('on'); });
 $('llmStyle').addEventListener('change', syncCustomPrompt);
 $('optType').addEventListener('click', () => setRadio(false));
 $('optCopy').addEventListener('click', () => setRadio(true));
@@ -121,6 +133,7 @@ $('btnSave').addEventListener('click', async () => {
     llmStyle: $('llmStyle').value,
     llmCustomPrompt: $('llmCustomPrompt').value,
     copyToClipboard: $('optCopy').classList.contains('sel'),
+    autoSubmit: $('autoSubmit').classList.contains('on'),
     launchAtStartup: $('launchAtStartup').classList.contains('on'),
   };
   await window.notype.saveSettings(payload);

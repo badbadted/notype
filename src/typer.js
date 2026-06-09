@@ -12,6 +12,7 @@ const VK_MENU = 0x12;    // Alt（通用）
 const VK_SPACE = 0x20;
 const VK_CONTROL = 0x11;
 const VK_V = 0x56;
+const VK_RETURN = 0x0D;
 const KEYEVENTF_KEYUP = 0x0002;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -54,4 +55,12 @@ function copyToClipboard(text) {
   if (text) clipboard.writeText(text);
 }
 
-module.exports = { typeText, copyToClipboard, releaseAllModifiers };
+// 模擬按一下 Enter（聊天視窗送出用）
+async function pressEnter() {
+  await sleep(60);
+  keybd_event(VK_RETURN, 0, 0, 0);
+  await sleep(30);
+  keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, 0);
+}
+
+module.exports = { typeText, copyToClipboard, pressEnter, releaseAllModifiers };
