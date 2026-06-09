@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NoType 安裝與使用手冊</title>
+<style>
+  :root{
+    --bg:#ffffff; --s1:#f8fafc; --s2:#e2e8f0; --t1:#1e293b; --t2:#64748b;
+    --ink:#18181b; --accent:#2563eb; --green:#16a34a; --amber:#d97706; --red:#dc2626;
+    --border:#e5e7eb; --radius:12px;
+    font-family:"Segoe UI","Microsoft JhengHei",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--s1);color:var(--t1);line-height:1.7;}
+  .wrap{display:flex;max-width:1180px;margin:0 auto;gap:32px;padding:32px 24px;}
+  /* TOC */
+  nav{position:sticky;top:32px;align-self:flex-start;width:210px;flex:none;
+    background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:16px 14px;font-size:13.5px;}
+  nav .brand{font-weight:700;font-size:15px;margin-bottom:12px;display:flex;align-items:center;gap:7px;}
+  nav a{display:block;color:var(--t2);text-decoration:none;padding:5px 8px;border-radius:7px;margin-bottom:2px;}
+  nav a:hover{background:var(--s1);color:var(--accent);}
+  main{flex:1;min-width:0;}
+  header.hero{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:26px 28px;margin-bottom:22px;}
+  header.hero h1{margin:0 0 8px;font-size:26px;}
+  header.hero p{margin:0;color:var(--t2);}
+  .badges{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;}
+  .badge{font-size:12px;padding:4px 10px;border-radius:999px;background:var(--s1);border:1px solid var(--border);color:var(--t2);}
+  section{background:#fff;border:1px solid var(--border);border-radius:var(--radius);padding:22px 26px;margin-bottom:18px;}
+  section h2{margin:0 0 14px;font-size:19px;display:flex;align-items:center;gap:9px;padding-bottom:10px;border-bottom:1px solid var(--border);}
+  section h2 .n{width:26px;height:26px;border-radius:50%;background:var(--accent);color:#fff;font-size:14px;display:flex;align-items:center;justify-content:center;flex:none;}
+  h3{font-size:15px;margin:18px 0 8px;}
+  p,li{font-size:14.5px;}
+  ul,ol{padding-left:22px;}
+  li{margin:4px 0;}
+  code{background:var(--s1);border:1px solid var(--border);border-radius:5px;padding:1px 6px;font-family:ui-monospace,monospace;font-size:13px;}
+  .kbd{font-family:ui-monospace,monospace;background:#fff;border:1px solid #cbd5e1;border-bottom-width:2px;border-radius:6px;padding:2px 9px;font-size:13px;font-weight:600;}
+  .steps{counter-reset:s;list-style:none;padding:0;}
+  .steps>li{counter-increment:s;position:relative;padding:10px 0 10px 42px;border-bottom:1px dashed var(--border);}
+  .steps>li:last-child{border-bottom:0;}
+  .steps>li::before{content:counter(s);position:absolute;left:0;top:9px;width:26px;height:26px;border-radius:50%;
+    background:var(--ink);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+  .card2{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin:12px 0;}
+  .note{border-left:4px solid var(--accent);background:#eff5ff;padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;font-size:13.5px;}
+  .warn{border-left:4px solid var(--amber);background:var(--amber-bg,#fffbeb);padding:10px 14px;border-radius:0 8px 8px 0;margin:12px 0;font-size:13.5px;}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:13.5px;}
+  th,td{border:1px solid var(--border);padding:8px 11px;text-align:left;vertical-align:top;}
+  th{background:var(--s1);font-weight:600;}
+  .tag{font-size:12px;padding:2px 8px;border-radius:6px;}
+  .tag.ok{background:#dcfce7;color:var(--green);}
+  .tag.bad{background:#fee2e2;color:var(--red);}
+  a.link{color:var(--accent);}
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0;font-size:13.5px;}
+  .flow .b{background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:7px 12px;}
+  .flow .arr{color:var(--t2);}
+  footer{color:var(--t2);font-size:12.5px;text-align:center;padding:8px 0 24px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <div class="brand">🎙️ NoType</div>
+    <a href="#intro">這是什麼</a>
+    <a href="#req">系統需求</a>
+    <a href="#install">① 安裝</a>
+    <a href="#key">② 取得 API Key</a>
+    <a href="#setup">③ 首次設定</a>
+    <a href="#use">④ 開始使用</a>
+    <a href="#settings">設定項說明</a>
+    <a href="#trouble">疑難排解</a>
+    <a href="#uninstall">解除安裝</a>
+  </nav>
+
+  <main>
+    <header class="hero">
+      <h1>🎙️ NoType 安裝與使用手冊</h1>
+      <p>用說的取代打字 — 按住 <span class="kbd">F9</span> 說話，自動辨識 + AI 潤稿，文字直接出現在游標處。</p>
+      <div class="badges">
+        <span class="badge">Windows 10 / 11</span>
+        <span class="badge">v0.1.0</span>
+        <span class="badge">自帶 API Key（BYOK）</span>
+        <span class="badge">常駐系統匣</span>
+      </div>
+    </header>
+
+    <section id="intro">
+      <h2><span class="n">i</span>這是什麼</h2>
+      <p>NoType 是常駐在 Windows 系統匣的語音輸入小工具。在任何可以打字的地方（Word、瀏覽器、聊天視窗、程式編輯器…），<b>按住 F9 說話、放開停止</b>，它會把你的語音透過雲端 Whisper 轉成文字、用 AI 潤稿（移除贅詞、加標點），再自動貼進你的游標位置。</p>
+      <div class="flow">
+        <span class="b">按住 F9 說話</span><span class="arr">→</span>
+        <span class="b">放開</span><span class="arr">→</span>
+        <span class="b">語音辨識</span><span class="arr">→</span>
+        <span class="b">AI 潤稿</span><span class="arr">→</span>
+        <span class="b">貼進游標</span>
+      </div>
+      <div class="note">語音辨識與潤稿走雲端 API，需要網路與一把你自己的 API Key。Key 只存在你本機，不經第三方伺服器。</div>
+    </section>
+
+    <section id="req">
+      <h2><span class="n">✓</span>系統需求</h2>
+      <ul>
+        <li>Windows 10 / 11（64-bit）</li>
+        <li>麥克風（內建或外接）</li>
+        <li>網路連線</li>
+        <li>一把 Groq 或 OpenAI 的 API Key（下方教你拿，Groq 有免費額度）</li>
+      </ul>
+    </section>
+
+    <section id="install">
+      <h2><span class="n">1</span>安裝</h2>
+      <p>兩種方式擇一：</p>
+      <h3>方式 A — 安裝檔（建議）</h3>
+      <ol class="steps">
+        <li>執行 <code>NoType Setup 0.1.0.exe</code></li>
+        <li>一鍵安裝完成，桌面/開始選單會出現 NoType 捷徑</li>
+        <li>啟動後圖示常駐在右下角系統匣（藍色麥克風）</li>
+      </ol>
+      <h3>方式 B — 免安裝（Portable）</h3>
+      <ol class="steps">
+        <li>把 <code>NoType-Portable-0.1.0.exe</code> 放到任意資料夾</li>
+        <li>雙擊直接執行，無需安裝</li>
+        <li>適合放隨身碟或不想安裝的情境</li>
+      </ol>
+      <div class="warn">首次啟動 Windows SmartScreen 可能跳「不明發行者」提示（因為沒做數位簽章）。點「<b>其他資訊</b> → 仍要執行」即可。</div>
+    </section>
+
+    <section id="key">
+      <h2><span class="n">2</span>取得 API Key</h2>
+      <table>
+        <tr><th>服務</th><th>取得網址</th><th>說明</th></tr>
+        <tr><td><b>Groq</b>（推薦）</td><td><a class="link" href="https://console.groq.com/keys">console.groq.com/keys</a></td><td>免費額度大、速度快，金鑰格式 <code>gsk_...</code></td></tr>
+        <tr><td>OpenAI</td><td><a class="link" href="https://platform.openai.com/api-keys">platform.openai.com/api-keys</a></td><td>需綁定付款，金鑰格式 <code>sk-...</code></td></tr>
+      </table>
+      <p>註冊登入後建立一把新的 API Key，複製起來下一步用。</p>
+      <div class="note">同一把 Groq Key 同時用於語音辨識與 AI 潤稿，填一次即可。</div>
+    </section>
+
+    <section id="setup">
+      <h2><span class="n">3</span>首次設定</h2>
+      <p>首次啟動會自動跳出設定視窗（若沒跳，左鍵或右鍵點系統匣圖示 → 設定）。</p>
+      <ol class="steps">
+        <li><b>辨識服務</b>：選 Groq（預設）或 OpenAI</li>
+        <li><b>API Key</b>：貼上金鑰，按「<b>測試</b>」→ 出現綠色「<span class="tag ok">✓ 金鑰有效</span>」表示 OK</li>
+        <li><b>辨識語言</b>：中英混雜建議選「自動偵測」；純中文選「繁體中文」</li>
+        <li><b>AI 潤稿</b>：建議開啟，會自動移除「嗯、啊、那個」等贅詞並加標點</li>
+        <li><b>輸入方式</b>：「自動貼上到游標」或「只複製到剪貼簿」</li>
+        <li>按「<b>儲存設定</b>」完成</li>
+      </ol>
+    </section>
+
+    <section id="use">
+      <h2><span class="n">4</span>開始使用</h2>
+      <ol class="steps">
+        <li>在任何輸入框點一下，讓游標停在那裡</li>
+        <li>按住 <span class="kbd">F9</span> 不放，螢幕底部出現「錄音中」浮窗</li>
+        <li>對著麥克風說話</li>
+        <li>放開 <span class="kbd">F9</span>，浮窗依序顯示「辨識中 → 潤稿中 → 已貼上」</li>
+        <li>文字自動出現在你的游標位置 🎉</li>
+      </ol>
+      <div class="note">浮窗狀態：<b>錄音中</b>(紅色波形) → <b>辨識中</b> → <b>潤稿中</b> → <b>完成</b>(綠勾) / <b>錯誤</b>(紅叉)。完成後浮窗自動消失。</div>
+    </section>
+
+    <section id="settings">
+      <h2><span class="n">⚙</span>設定項說明</h2>
+      <table>
+        <tr><th>設定</th><th>說明</th></tr>
+        <tr><td>辨識服務</td><td>Groq Whisper（large-v3）或 OpenAI Whisper，各自填對應金鑰</td></tr>
+        <tr><td>辨識語言</td><td>繁中 / 自動偵測（中英混雜）/ English / 日本語</td></tr>
+        <tr><td>AI 潤稿</td><td>開關。風格：口語轉書面 / 保留原語氣 / 精簡贅字 / 翻譯成英文 / <b>自訂</b>（自己寫 prompt）</td></tr>
+        <tr><td>輸入方式</td><td>自動貼上到游標 vs 只複製到剪貼簿</td></tr>
+        <tr><td>快捷鍵</td><td>按住 <span class="kbd">F9</span> 說話（Windows 保留了 Alt+Space，故用 F9）</td></tr>
+        <tr><td>開機自動啟動</td><td>開啟後每次開機自動常駐</td></tr>
+      </table>
+    </section>
+
+    <section id="trouble">
+      <h2><span class="n">!</span>疑難排解</h2>
+      <table>
+        <tr><th>症狀</th><th>處理</th></tr>
+        <tr><td>金鑰測試顯示「無效」</td><td>確認金鑰完整複製、沒有多餘空格；Groq/OpenAI 帳號額度是否用盡；網路是否正常</td></tr>
+        <tr><td>按 F9 沒反應</td><td>F9 可能被其他程式佔用。本程式會自動退到其他可用鍵——查 debug log 看實際註冊的是哪個鍵</td></tr>
+        <tr><td>文字沒貼出來</td><td>確認游標有停在輸入框；某些以系統管理員權限執行的視窗無法被一般程式貼字，試試其他視窗</td></tr>
+        <tr><td>辨識不準 / 中英混雜怪</td><td>辨識語言改「自動偵測」；講話清楚、環境安靜；太短的句子（少於幾個字）較不穩</td></tr>
+        <tr><td>完全沒聲音被辨識</td><td>檢查 Windows 麥克風權限與預設輸入裝置</td></tr>
+        <tr><td>程式異常 / 閃退</td><td>查 debug log（見下方），把內容回報</td></tr>
+      </table>
+      <div class="card2">
+        <b>Debug log 位置：</b> <code>%TEMP%\notype-debug.log</code><br>
+        在檔案總管網址列貼上 <code>%TEMP%</code> 按 Enter，找 <code>notype-debug.log</code> 開啟即可看到啟動與錯誤紀錄。
+      </div>
+    </section>
+
+    <section id="uninstall">
+      <h2><span class="n">×</span>解除安裝</h2>
+      <ul>
+        <li><b>安裝版</b>：Windows 設定 → 應用程式 → 找 NoType → 解除安裝</li>
+        <li><b>免安裝版</b>：直接刪除 exe 檔即可</li>
+        <li>設定檔位於 <code>%APPDATA%\notype\</code>，要徹底清除可一併刪除該資料夾</li>
+      </ul>
+    </section>
+
+    <footer>NoType v0.1.0 · 安裝與使用手冊 · 原始碼 github.com/badbadted/notype</footer>
+  </main>
+</div>
+</body>
+</html>
