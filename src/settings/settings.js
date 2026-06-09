@@ -18,6 +18,18 @@ async function load() {
   syncCustomPrompt();
   syncLlmDim();
   syncBanner();
+
+  // 版本號 + 目前實際生效的熱鍵（避免 UI 與實際註冊的鍵不一致造成「以為壞了」）
+  const ver = await window.notype.getVersion();
+  const hk = prettyHotkey(s.hotkey);
+  $('ver').textContent = `NoType v${ver}`;
+  $('hotkeyKbd').textContent = hk;
+}
+
+// 把 Electron accelerator 轉成好讀的顯示（CommandOrControl/Control → Ctrl）
+function prettyHotkey(accel) {
+  if (!accel) return 'F9';
+  return accel.replace(/CommandOrControl|Control/gi, 'Ctrl').replace(/\+/g, ' + ');
 }
 
 // ── 元件 helper ───────────────────────────────────────

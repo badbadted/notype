@@ -63,6 +63,9 @@ function createSettingsWindow() {
 function registerIpc() {
   const store = getStore();
 
+  // 應用程式版本
+  ipcMain.handle('get-version', () => app.getVersion());
+
   // 讀取全部設定
   ipcMain.handle('get-settings', () => store.store);
 
