@@ -1,34 +1,32 @@
 // 設定頁渲染邏輯 — 透過 window.notype 與主程序 IPC 通訊
 const $ = (id) => document.getElementById(id);
-let s = {}; // 本地設定鏡像
+let s = {};            // 本地設定鏡像
+let roles = [];        // 角色清單（本地暫存，儲存時寫回）
+let activeRoleId = null;
+let editingId = null;  // 編輯器目前編輯的角色 id；null=新增
 
 // ── 載入 ──────────────────────────────────────────────
 async function load() {
   s = await window.notype.getSettings();
-  // STT 服務
+  roles = Array.isArray(s.roles) ? JSON.parse(JSON.stringify(s.roles)) : [];
+  activeRoleId = s.activeRoleId || (roles[0] && roles[0].id) || null;
+
   setSeg('sttSeg', s.sttProvider);
-  setSeg('llmSeg', s.llmProvider);
   $('language').value = s.language || 'zh';
-  $('llmStyle').value = s.llmStyle || 'clean';
-  $('llmCustomPrompt').value = s.llmCustomPrompt || '';
   setToggle('llmEnabled', s.llmEnabled);
   setToggle('launchAtStartup', s.launchAtStartup);
   setToggle('autoSubmit', s.autoSubmit);
   setRadio(s.copyToClipboard === true);
-  syncAutoSubmitDim();
+  renderRoles();
   syncKeyField();
-  syncCustomPrompt();
   syncLlmDim();
   syncBanner();
 
-  // 版本號 + 目前實際生效的熱鍵（避免 UI 與實際註冊的鍵不一致造成「以為壞了」）
   const ver = await window.notype.getVersion();
-  const hk = prettyHotkey(s.hotkey);
   $('ver').textContent = `NoType v${ver}`;
-  $('hotkeyKbd').textContent = hk;
+  $('hotkeyKbd').textContent = prettyHotkey(s.hotkey);
 }
 
-// 把 Electron accelerator 轉成好讀的顯示（CommandOrControl/Control → Ctrl）
 function prettyHotkey(accel) {
   if (!accel) return 'F9';
   return accel.replace(/CommandOrControl|Control/gi, 'Ctrl').replace(/\+/g, ' + ');
@@ -49,51 +47,113 @@ function setRadio(copy) {
   syncAutoSubmitDim();
 }
 function syncAutoSubmitDim() {
-  // 「只複製到剪貼簿」模式沒有貼上動作，自動送出不適用 → 淡化
   const copyMode = $('optCopy').classList.contains('sel');
   const row = $('autoSubmitRow');
   if (!row) return;
   row.style.opacity = copyMode ? '.4' : '1';
   row.style.pointerEvents = copyMode ? 'none' : 'auto';
 }
-
 function activeKeyName() { return getSeg('sttSeg') === 'groq' ? 'groqApiKey' : 'openaiApiKey'; }
 function syncKeyField() {
   $('apiKey').value = s[activeKeyName()] || '';
   $('keyStatus').textContent = '';
   $('keyStatus').className = 'status';
 }
-function syncCustomPrompt() {
-  $('llmCustomPrompt').classList.toggle('show', $('llmStyle').value === 'custom');
-}
 function syncLlmDim() {
-  // 潤稿關閉時，淡化模型/風格列（保留開關本身可點）
   const off = !$('llmEnabled').classList.contains('on');
-  $('llmCard').querySelectorAll('.row:not(:first-child), #llmStyle, #llmCustomPrompt').forEach((el) => {
-    el.style.opacity = off ? '.4' : '1';
-    el.style.pointerEvents = off ? 'none' : 'auto';
-  });
+  const area = $('roleArea');
+  area.style.opacity = off ? '.4' : '1';
+  area.style.pointerEvents = off ? 'none' : 'auto';
 }
 function syncBanner() {
   const hasKey = (s[activeKeyName()] || '').trim().length > 0;
   $('banner').classList.toggle('show', !hasKey);
 }
 
-// ── 事件綁定 ──────────────────────────────────────────
+// ── 角色管理 ──────────────────────────────────────────
+function esc(str) {
+  return String(str || '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+}
+function renderRoles() {
+  const list = $('rolesList');
+  list.innerHTML = roles.map((r) => `
+    <div class="role ${r.id === activeRoleId ? 'active' : ''}" data-id="${esc(r.id)}">
+      <span class="rdot"></span>
+      <div class="rgrow">
+        <div class="rnm">${esc(r.name)}</div>
+        <div class="rdesc">${esc(r.desc || r.prompt || '')}</div>
+      </div>
+      <div class="racts">
+        <span class="ric" data-act="edit" title="編輯">✏️</span>
+        ${roles.length > 1 ? '<span class="ric" data-act="del" title="刪除">🗑️</span>' : ''}
+      </div>
+    </div>`).join('');
+}
+function selectRole(id) { activeRoleId = id; renderRoles(); }
+function deleteRole(id) {
+  if (roles.length <= 1) return;
+  roles = roles.filter((r) => r.id !== id);
+  if (activeRoleId === id) activeRoleId = roles[0].id;
+  if (editingId === id) closeEditor();
+  renderRoles();
+}
+function openEditor(id) {
+  editingId = id;
+  const r = roles.find((x) => x.id === id);
+  $('edTitle').textContent = r ? '編輯角色' : '新增角色';
+  $('edName').value = r ? r.name : '';
+  $('edPrompt').value = r ? r.prompt : '';
+  setSeg('edModel', (r && r.model) || s.llmProvider || 'groq');
+  $('roleEditor').hidden = false;
+  $('edName').focus();
+}
+function closeEditor() { editingId = null; $('roleEditor').hidden = true; }
+function saveRole() {
+  const name = $('edName').value.trim();
+  const prompt = $('edPrompt').value.trim();
+  if (!name) { $('edName').focus(); return; }
+  if (!prompt) { $('edPrompt').focus(); return; }
+  const model = getSeg('edModel') || 'groq';
+  if (editingId) {
+    const r = roles.find((x) => x.id === editingId);
+    if (r) { r.name = name; r.prompt = prompt; r.model = model; r.desc = ''; }
+  } else {
+    const id = 'r_' + Date.now();
+    roles.push({ id, name, prompt, model, desc: '' });
+    activeRoleId = id; // 新增即設為生效
+  }
+  closeEditor();
+  renderRoles();
+}
+
+// 事件委派：角色列表
+$('rolesList').addEventListener('click', (e) => {
+  const ic = e.target.closest('.ric');
+  const row = e.target.closest('.role');
+  if (!row) return;
+  const id = row.dataset.id;
+  if (ic) {
+    if (ic.dataset.act === 'edit') openEditor(id);
+    else if (ic.dataset.act === 'del') deleteRole(id);
+  } else {
+    selectRole(id);
+  }
+});
+$('addRole').addEventListener('click', () => openEditor(null));
+$('edModel').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) setSeg('edModel', b.dataset.v); });
+$('edCancel').addEventListener('click', closeEditor);
+$('edSaveRole').addEventListener('click', saveRole);
+
+// ── 其他事件 ──────────────────────────────────────────
 $('sttSeg').addEventListener('click', (e) => {
   const btn = e.target.closest('button'); if (!btn) return;
   setSeg('sttSeg', btn.dataset.v);
   syncKeyField();
   syncBanner();
 });
-$('llmSeg').addEventListener('click', (e) => {
-  const btn = e.target.closest('button'); if (!btn) return;
-  setSeg('llmSeg', btn.dataset.v);
-});
 $('llmEnabled').addEventListener('click', function () { this.classList.toggle('on'); syncLlmDim(); });
 $('launchAtStartup').addEventListener('click', function () { this.classList.toggle('on'); });
 $('autoSubmit').addEventListener('click', function () { this.classList.toggle('on'); });
-$('llmStyle').addEventListener('change', syncCustomPrompt);
 $('optType').addEventListener('click', () => setRadio(false));
 $('optCopy').addEventListener('click', () => setRadio(true));
 $('apiKey').addEventListener('input', () => {
@@ -129,9 +189,8 @@ $('btnSave').addEventListener('click', async () => {
     groqApiKey: s.groqApiKey || '',
     language: $('language').value,
     llmEnabled: $('llmEnabled').classList.contains('on'),
-    llmProvider: getSeg('llmSeg'),
-    llmStyle: $('llmStyle').value,
-    llmCustomPrompt: $('llmCustomPrompt').value,
+    roles,
+    activeRoleId,
     copyToClipboard: $('optCopy').classList.contains('sel'),
     autoSubmit: $('autoSubmit').classList.contains('on'),
     launchAtStartup: $('launchAtStartup').classList.contains('on'),

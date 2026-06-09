@@ -43,24 +43,28 @@
         <span class="lbl">啟用潤稿<small>移除贅詞、自動標點、修正文法</small></span>
         <div class="tg" id="llmEnabled"></div>
       </div>
-      <div class="row">
-        <span class="lbl">潤稿模型</span>
-        <div class="seg" id="llmSeg">
-          <button data-v="groq">Groq Llama</button>
-          <button data-v="openai">GPT-4o-mini</button>
+
+      <div id="roleArea">
+        <div class="sub-h">潤稿角色<small>點選＝設為目前生效；可編輯、刪除、新增</small></div>
+        <div class="roles" id="rolesList"><!-- JS render --></div>
+        <div class="addbtn" id="addRole">＋ 新增角色</div>
+
+        <!-- 角色編輯器（新增/編輯時顯示） -->
+        <div class="editor" id="roleEditor" hidden>
+          <div class="ed-ttl" id="edTitle">編輯角色</div>
+          <div class="fld"><label>角色名稱</label><input id="edName" maxlength="20" placeholder="例如：社群貼文" /></div>
+          <div class="fld"><label>潤稿模型</label>
+            <div class="seg" id="edModel"><button data-v="groq">Groq Llama</button><button data-v="openai">GPT-4o-mini</button></div>
+          </div>
+          <div class="fld"><label>潤稿指令（system prompt）</label>
+            <textarea id="edPrompt" placeholder="描述要把語音整理成什麼樣子，例如：把口語改寫成活潑的社群貼文，可加 emoji，繁體中文，只輸出貼文本身。"></textarea>
+          </div>
+          <div class="ed-row">
+            <button class="btn-ghost" id="edCancel">取消</button>
+            <button class="btn-primary" id="edSaveRole">儲存角色</button>
+          </div>
         </div>
       </div>
-      <div class="row">
-        <span class="lbl">潤稿風格</span>
-        <select id="llmStyle">
-          <option value="clean">口語轉書面</option>
-          <option value="raw">保留原語氣</option>
-          <option value="concise">精簡贅字</option>
-          <option value="translate_en">翻譯成英文</option>
-          <option value="custom">自訂…</option>
-        </select>
-      </div>
-      <textarea id="llmCustomPrompt" placeholder="輸入自訂 system prompt，例如：請將以下逐字稿整理為條列重點，保留專有名詞，使用繁體中文。"></textarea>
     </div>
 
     <!-- 輸入方式 -->
