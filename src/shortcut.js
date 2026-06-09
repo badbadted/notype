@@ -5,8 +5,9 @@ const { getStore } = require('./store');
 const { startRecording, stopRecording, saveAudioBuffer, cleanupTempAudio } = require('./recorder');
 const { showOverlay, hideOverlay } = require('./overlay');
 const { transcribe } = require('./api/stt');
-const { polishText } = require('./api/llm');
+const { polishText, getActiveRole } = require('./api/llm');
 const { typeText, copyToClipboard, pressEnter } = require('./typer');
+const { refreshTrayMenu } = require('./tray');
 const { log } = require('./logger');
 
 const user32 = koffi.load('user32.dll');
@@ -59,11 +60,48 @@ function registerShortcut() {
       } else {
         log.info(`[shortcut] 已註冊 ${accel}（按住說話）`);
       }
+      registerCycleHotkey(); // 一併註冊角色循環熱鍵
       return accel;
     }
   }
   log.error('[shortcut] 所有候選熱鍵都註冊失敗');
   return null;
+}
+
+// 循環切換潤稿角色的熱鍵（與主熱鍵分開註冊，同樣自我修復）
+const CYCLE_FALLBACKS = ['F10', 'F8', 'CommandOrControl+Shift+R'];
+function registerCycleHotkey() {
+  const store = getStore();
+  const wanted = store.get('cycleHotkey') || 'F10';
+  const candidates = [wanted, ...CYCLE_FALLBACKS.filter((f) => f !== wanted)];
+  for (const accel of candidates) {
+    let ok = false;
+    try { ok = globalShortcut.register(accel, cycleRole); } catch { ok = false; }
+    if (ok) {
+      if (accel !== wanted) { store.set('cycleHotkey', accel); log.warn(`[shortcut] 循環熱鍵改用 ${accel}`); }
+      else log.info(`[shortcut] 已註冊循環熱鍵 ${accel}`);
+      return accel;
+    }
+  }
+  log.warn('[shortcut] 循環熱鍵全部註冊失敗（仍可從系統匣切角色）');
+  return null;
+}
+
+// 循環到下一個潤稿角色，浮窗閃示
+function cycleRole() {
+  if (isRecording) return; // 錄音中不切換
+  const store = getStore();
+  const roles = store.get('roles') || [];
+  if (roles.length < 2) return;
+  const cur = store.get('activeRoleId');
+  let i = roles.findIndex((r) => r.id === cur);
+  i = (i + 1) % roles.length;
+  const next = roles[i];
+  store.set('activeRoleId', next.id);
+  try { refreshTrayMenu(); } catch { /* 忽略 */ }
+  log.info('[shortcut] 切換角色 →', next.name);
+  showOverlay('role', next.name);
+  hideOverlay(1200);
 }
 
 function startRec() {
@@ -79,7 +117,9 @@ function startRec() {
   }
 
   isRecording = true;
-  showOverlay('recording');
+  // 浮窗顯示目前潤稿角色（潤稿開啟時）
+  const role = store.get('llmEnabled') === true ? getActiveRole(store) : null;
+  showOverlay('recording', role ? role.name : '');
   startRecording();
 
   // 每 80ms 檢查熱鍵是否放開（任一鍵放開即停止）

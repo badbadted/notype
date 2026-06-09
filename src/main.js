@@ -1,7 +1,7 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('path');
 const { log } = require('./logger');
-const { createTray } = require('./tray');
+const { createTray, refreshTrayMenu } = require('./tray');
 const { getStore } = require('./store');
 const { createRecorderWindow } = require('./recorder');
 const { createOverlayWindow, showOverlay, hideOverlay } = require('./overlay');
@@ -80,6 +80,7 @@ function registerIpc() {
     if (typeof global.__notypeReregisterShortcut === 'function') {
       global.__notypeReregisterShortcut();
     }
+    refreshTrayMenu(); // 角色清單/生效角色可能變動 → 更新系統匣選單
     log.info('[ipc] 設定已儲存', Object.keys(settings));
     return true;
   });

@@ -44,6 +44,7 @@
   .badge { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 900; font-size: 14px; animation: pop .3s; }
   .badge.ok { background: var(--green); }
   .badge.err { background: var(--red); }
+  .badge.role { background: #f4f4f5; font-size: 15px; }
 </style>
 </head>
 <body>
@@ -58,6 +59,7 @@
       polishing: { ico: '<div class="spin amber"></div>', txt: '潤稿中…', sub: 'AI 整理文字' },
       done: { ico: '<div class="badge ok">✓</div>', txt: '完成', sub: '' },
       error: { ico: '<div class="badge err">✕</div>', txt: '發生錯誤', sub: '請檢查設定或網路' },
+      role: { ico: '<div class="badge role">🎭</div>', txt: '切換角色', sub: '' },
     };
     function render(state, detail) {
       const st = STATES[state] || STATES.processing;
