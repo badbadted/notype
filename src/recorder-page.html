@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'" />
+<title>recorder</title>
+</head>
+<body>
+<script>
+  // 在隱藏視窗中執行 MediaRecorder（主程序無法直接存取麥克風）
+  let mediaRecorder = null;
+  let chunks = [];
+  let stream = null;
+
+  function pickMime() {
+    const prefs = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
+    for (const m of prefs) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m;
+    }
+    return '';
+  }
+
+  async function start() {
+    try {
+      chunks = [];
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+      const mimeType = pickMime();
+      mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+      mediaRecorder.onstop = onStop;
+      mediaRecorder.start();
+    } catch (err) {
+      window.recApi.reportError('麥克風存取失敗：' + (err && err.message ? err.message : err));
+    }
+  }
+
+  async function onStop() {
+    try {
+      const blob = new Blob(chunks, { type: chunks[0] ? chunks[0].type : 'audio/webm' });
+      const ab = await blob.arrayBuffer();
+      window.recApi.sendAudio(new Uint8Array(ab));
+    } catch (err) {
+      window.recApi.reportError('音訊封裝失敗：' + (err && err.message ? err.message : err));
+    } finally {
+      releaseStream();
+    }
+  }
+
+  function stop() {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    } else {
+      releaseStream();
+    }
+  }
+
+  function releaseStream() {
+    if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+  }
+
+  window.recApi.onStart(start);
+  window.recApi.onStop(stop);
+</script>
+</body>
+</html>

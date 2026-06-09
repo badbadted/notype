@@ -19,7 +19,7 @@ const defaults = {
   copyToClipboard: false, // true=只複製到剪貼簿不自動貼上
 
   // 系統
-  hotkey: 'Alt+Space', // 預留自訂（目前流程固定偵測 Left Alt + Space）
+  hotkey: 'F9', // Alt+Space 被 Windows 保留無法註冊，預設改 F9 單鍵按住說話
   launchAtStartup: false,
 };
 

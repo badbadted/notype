@@ -3,6 +3,9 @@ const path = require('path');
 const { log } = require('./logger');
 const { createTray } = require('./tray');
 const { getStore } = require('./store');
+const { createRecorderWindow } = require('./recorder');
+const { createOverlayWindow, showOverlay, hideOverlay } = require('./overlay');
+const { registerShortcut, unregisterShortcut, handleAudioData } = require('./shortcut');
 
 // ── 跨機部署防護（必須在 app ready 前設定）──────────────────────
 // 來源：feedback_electron_portable_packaging — 否則在其他電腦會無聲閃退
@@ -95,6 +98,16 @@ function registerIpc() {
       return false;
     }
   });
+
+  // 隱藏錄音視窗回傳的音訊 → 進入 STT→潤稿→輸入流程
+  ipcMain.on('audio-data', (_event, audioBuffer) => { handleAudioData(audioBuffer); });
+
+  // 錄音視窗回報錯誤（如麥克風存取失敗）
+  ipcMain.on('recorder-error', (_event, msg) => {
+    log.error('[recorder]', msg);
+    showOverlay('error', String(msg).slice(0, 40));
+    hideOverlay(3500);
+  });
 }
 
 app.whenReady().then(() => {
@@ -108,13 +121,25 @@ app.whenReady().then(() => {
     onQuit: () => app.quit(),
   });
 
-  // 首次啟動或無視窗時開設定頁引導
-  createSettingsWindow();
+  // 預建隱藏錄音視窗 + 浮窗，並註冊全域快捷鍵
+  createRecorderWindow();
+  createOverlayWindow();
+  registerShortcut();
+  global.__notypeReregisterShortcut = registerShortcut; // 設定變更時供 IPC 重註冊
+
+  // 首次啟動開設定頁引導；已設金鑰則靜默常駐
+  const store = getStore();
+  const hasKey = store.get('groqApiKey') || store.get('openaiApiKey');
+  if (!hasKey) createSettingsWindow();
 }).catch((err) => log.error('[main] whenReady 失敗', err));
 
 // 系統匣常駐：視窗全關不退出
 app.on('window-all-closed', (e) => {
   e.preventDefault();
+});
+
+app.on('will-quit', () => {
+  unregisterShortcut();
 });
 
 module.exports = { createSettingsWindow };
