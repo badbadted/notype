@@ -80,8 +80,6 @@ select, textarea {
 }
 select { min-width: 170px; }
 select:focus, textarea:focus { outline: none; border-color: var(--ink); }
-textarea { width: 100%; margin-top: 10px; min-height: 64px; resize: vertical; line-height: 1.5; display: none; }
-textarea.show { display: block; }
 
 /* 角色管理 */
 .sub-h { font-size: 12px; color: var(--t2); font-weight: 600; margin: 12px 0 6px; }
