@@ -26,12 +26,10 @@ process.on('unhandledRejection', (reason) => {
   log.error('[unhandledRejection]', reason);
 });
 
-// 單一實例
+// 單一實例：敗方必須立即退出且「完全不執行任何初始化」。
+// 否則敗方仍會建系統匣、搶註冊熱鍵失敗後把 fallback 鍵寫回共用設定檔，
+// 污染正常實例（曾導致 F9 被改成 Ctrl+Shift+Space、按 F9 沒反應）。
 const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
-  log.info('已有實例在執行，退出');
-  app.quit();
-}
 
 let settingsWindow = null;
 
@@ -110,36 +108,47 @@ function registerIpc() {
   });
 }
 
-app.whenReady().then(() => {
-  log.info('[main] app ready, log =', log.path());
-
-  getStore(); // 初始化設定存儲
-  registerIpc();
-
-  createTray({
-    onSettings: () => createSettingsWindow(),
-    onQuit: () => app.quit(),
+if (!gotTheLock) {
+  log.info('[main] 已有實例在執行，立即退出（不做任何初始化）');
+  app.quit();
+} else {
+  // 再次啟動 NoType（例如使用者重複點圖示）→ 把既有實例的設定視窗帶到前景
+  app.on('second-instance', () => {
+    log.info('[main] 偵測到第二次啟動，聚焦既有設定視窗');
+    createSettingsWindow();
   });
 
-  // 預建隱藏錄音視窗 + 浮窗，並註冊全域快捷鍵
-  createRecorderWindow();
-  createOverlayWindow();
-  registerShortcut();
-  global.__notypeReregisterShortcut = registerShortcut; // 設定變更時供 IPC 重註冊
+  app.whenReady().then(() => {
+    log.info('[main] app ready, log =', log.path());
 
-  // 首次啟動開設定頁引導；已設金鑰則靜默常駐
-  const store = getStore();
-  const hasKey = store.get('groqApiKey') || store.get('openaiApiKey');
-  if (!hasKey) createSettingsWindow();
-}).catch((err) => log.error('[main] whenReady 失敗', err));
+    getStore(); // 初始化設定存儲
+    registerIpc();
 
-// 系統匣常駐：視窗全關不退出
-app.on('window-all-closed', (e) => {
-  e.preventDefault();
-});
+    createTray({
+      onSettings: () => createSettingsWindow(),
+      onQuit: () => app.quit(),
+    });
 
-app.on('will-quit', () => {
-  unregisterShortcut();
-});
+    // 預建隱藏錄音視窗 + 浮窗，並註冊全域快捷鍵
+    createRecorderWindow();
+    createOverlayWindow();
+    registerShortcut();
+    global.__notypeReregisterShortcut = registerShortcut; // 設定變更時供 IPC 重註冊
+
+    // 首次啟動開設定頁引導；已設金鑰則靜默常駐
+    const store = getStore();
+    const hasKey = store.get('groqApiKey') || store.get('openaiApiKey');
+    if (!hasKey) createSettingsWindow();
+  }).catch((err) => log.error('[main] whenReady 失敗', err));
+
+  // 系統匣常駐：視窗全關不退出
+  app.on('window-all-closed', (e) => {
+    e.preventDefault();
+  });
+
+  app.on('will-quit', () => {
+    unregisterShortcut();
+  });
+}
 
 module.exports = { createSettingsWindow };
