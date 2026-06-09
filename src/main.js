@@ -43,7 +43,7 @@ function createSettingsWindow() {
     height: 560,
     resizable: false,
     title: 'NoType 設定',
-    backgroundColor: '#0f172a', // 避免 Windows frameless/載入前白邊
+    backgroundColor: '#fafafa', // 避免 Windows 載入前白邊（mono-gray 淺色主題）
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'settings', 'preload.js'),

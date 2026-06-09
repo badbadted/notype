@@ -4,16 +4,92 @@
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'" />
   <title>NoType 設定</title>
-  <style>
-    body { margin: 0; font-family: "Segoe UI", "Microsoft JhengHei", sans-serif; background: #0f172a; color: #e2e8f0; display: flex; align-items: center; justify-content: center; height: 100vh; }
-    .placeholder { text-align: center; opacity: .8; }
-    h1 { font-size: 18px; font-weight: 600; }
-  </style>
+  <link rel="stylesheet" href="settings.css" />
 </head>
 <body>
-  <div class="placeholder">
-    <h1>🎙️ NoType</h1>
-    <p>設定頁建構中（切片 2：UI 設計）</p>
+  <div class="banner" id="banner">⚠️ <span><b>尚未設定 API Key</b> — 請填入金鑰並測試，才能開始語音輸入。</span></div>
+
+  <div class="scroll">
+    <!-- 語音辨識 -->
+    <div class="card">
+      <h3>🗣️ 語音辨識引擎</h3>
+      <div class="row">
+        <span class="lbl">辨識服務</span>
+        <div class="seg" id="sttSeg">
+          <button data-v="groq">Groq Whisper</button>
+          <button data-v="openai">OpenAI Whisper</button>
+        </div>
+      </div>
+      <div class="keyrow">
+        <input type="password" id="apiKey" placeholder="貼上 API Key" autocomplete="off" />
+        <button class="btn-test" id="btnTest">測試</button>
+      </div>
+      <div class="status" id="keyStatus"></div>
+      <div class="row">
+        <span class="lbl">辨識語言<small>中英混雜建議選「自動偵測」</small></span>
+        <select id="language">
+          <option value="zh">繁體中文 (zh)</option>
+          <option value="auto">自動偵測（中英混雜）</option>
+          <option value="en">English</option>
+          <option value="ja">日本語</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- AI 潤稿 -->
+    <div class="card" id="llmCard">
+      <h3>✨ AI 潤稿</h3>
+      <div class="row">
+        <span class="lbl">啟用潤稿<small>移除贅詞、自動標點、修正文法</small></span>
+        <div class="tg" id="llmEnabled"></div>
+      </div>
+      <div class="row">
+        <span class="lbl">潤稿模型</span>
+        <div class="seg" id="llmSeg">
+          <button data-v="groq">Groq Llama</button>
+          <button data-v="openai">GPT-4o-mini</button>
+        </div>
+      </div>
+      <div class="row">
+        <span class="lbl">潤稿風格</span>
+        <select id="llmStyle">
+          <option value="clean">口語轉書面</option>
+          <option value="raw">保留原語氣</option>
+          <option value="concise">精簡贅字</option>
+          <option value="translate_en">翻譯成英文</option>
+          <option value="custom">自訂…</option>
+        </select>
+      </div>
+      <textarea id="llmCustomPrompt" placeholder="輸入自訂 system prompt，例如：請將以下逐字稿整理為條列重點，保留專有名詞，使用繁體中文。"></textarea>
+    </div>
+
+    <!-- 輸入方式 -->
+    <div class="card">
+      <h3>⌨️ 輸入方式</h3>
+      <div class="opt" data-v="false" id="optType"><span class="dot"></span><span class="lbl">自動貼上到游標位置</span></div>
+      <div class="opt" data-v="true" id="optCopy"><span class="dot"></span><span class="lbl">只複製到剪貼簿（手動貼上）</span></div>
+    </div>
+
+    <!-- 一般 -->
+    <div class="card">
+      <h3>⚙️ 一般</h3>
+      <div class="row">
+        <span class="lbl">快捷鍵</span>
+        <span>按住 <span class="kbd">Alt</span> + <span class="kbd">Space</span> 說話</span>
+      </div>
+      <div class="row">
+        <span class="lbl">開機自動啟動</span>
+        <div class="tg" id="launchAtStartup"></div>
+      </div>
+    </div>
   </div>
+
+  <footer>
+    <span class="saved" id="savedTip">✓ 已儲存</span>
+    <button class="btn-ghost" id="btnClose">關閉</button>
+    <button class="btn-primary" id="btnSave">儲存設定</button>
+  </footer>
+
+  <script src="settings.js"></script>
 </body>
 </html>
