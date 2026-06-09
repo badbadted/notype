@@ -7,7 +7,6 @@ const { showOverlay, hideOverlay } = require('./overlay');
 const { transcribe } = require('./api/stt');
 const { polishText, getActiveRole } = require('./api/llm');
 const { typeText, copyToClipboard, pressEnter } = require('./typer');
-const { refreshTrayMenu } = require('./tray');
 const { log } = require('./logger');
 
 const user32 = koffi.load('user32.dll');
@@ -60,7 +59,7 @@ function registerShortcut() {
       } else {
         log.info(`[shortcut] 已註冊 ${accel}（按住說話）`);
       }
-      registerCycleHotkey(); // 一併註冊角色循環熱鍵
+      registerSubmitToggleHotkey(); // 一併註冊「說完自動送出」開關熱鍵
       return accel;
     }
   }
@@ -68,39 +67,33 @@ function registerShortcut() {
   return null;
 }
 
-// 循環切換潤稿角色的熱鍵（與主熱鍵分開註冊，同樣自我修復）
-const CYCLE_FALLBACKS = ['F10', 'F8', 'CommandOrControl+Shift+R'];
-function registerCycleHotkey() {
+// 快速開關「說完自動送出」的熱鍵（與主熱鍵分開註冊，同樣自我修復）
+const SUBMIT_FALLBACKS = ['F10', 'F8', 'CommandOrControl+Shift+Enter'];
+function registerSubmitToggleHotkey() {
   const store = getStore();
-  const wanted = store.get('cycleHotkey') || 'F10';
-  const candidates = [wanted, ...CYCLE_FALLBACKS.filter((f) => f !== wanted)];
+  const wanted = store.get('submitToggleHotkey') || 'F10';
+  const candidates = [wanted, ...SUBMIT_FALLBACKS.filter((f) => f !== wanted)];
   for (const accel of candidates) {
     let ok = false;
-    try { ok = globalShortcut.register(accel, cycleRole); } catch { ok = false; }
+    try { ok = globalShortcut.register(accel, toggleAutoSubmit); } catch { ok = false; }
     if (ok) {
-      if (accel !== wanted) { store.set('cycleHotkey', accel); log.warn(`[shortcut] 循環熱鍵改用 ${accel}`); }
-      else log.info(`[shortcut] 已註冊循環熱鍵 ${accel}`);
+      if (accel !== wanted) { store.set('submitToggleHotkey', accel); log.warn(`[shortcut] 送出開關熱鍵改用 ${accel}`); }
+      else log.info(`[shortcut] 已註冊送出開關熱鍵 ${accel}`);
       return accel;
     }
   }
-  log.warn('[shortcut] 循環熱鍵全部註冊失敗（仍可從系統匣切角色）');
+  log.warn('[shortcut] 送出開關熱鍵全部註冊失敗（仍可從設定頁切換）');
   return null;
 }
 
-// 循環到下一個潤稿角色，浮窗閃示
-function cycleRole() {
+// 切換「說完自動送出」開/關，浮窗閃示狀態
+function toggleAutoSubmit() {
   if (isRecording) return; // 錄音中不切換
   const store = getStore();
-  const roles = store.get('roles') || [];
-  if (roles.length < 2) return;
-  const cur = store.get('activeRoleId');
-  let i = roles.findIndex((r) => r.id === cur);
-  i = (i + 1) % roles.length;
-  const next = roles[i];
-  store.set('activeRoleId', next.id);
-  try { refreshTrayMenu(); } catch { /* 忽略 */ }
-  log.info('[shortcut] 切換角色 →', next.name);
-  showOverlay('role', next.name);
+  const now = !(store.get('autoSubmit') === true);
+  store.set('autoSubmit', now);
+  log.info('[shortcut] 即時送出 →', now);
+  showOverlay('toggle', now ? '已開啟' : '已關閉');
   hideOverlay(1200);
 }
 

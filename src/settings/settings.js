@@ -25,6 +25,8 @@ async function load() {
   const ver = await window.notype.getVersion();
   $('ver').textContent = `NoType v${ver}`;
   $('hotkeyKbd').textContent = prettyHotkey(s.hotkey);
+  const sh = $('submitHk');
+  if (sh) sh.textContent = prettyHotkey(s.submitToggleHotkey || 'F10');
 }
 
 function prettyHotkey(accel) {
