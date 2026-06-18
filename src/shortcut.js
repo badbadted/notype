@@ -132,6 +132,13 @@ function stopRec() {
 async function handleAudioData(audioBuffer) {
   const store = getStore();
   try {
+    // 空音訊（短按未真正錄到聲音 / 冷啟動競態收尾）→ 直接收尾，不送 STT
+    if (!audioBuffer || audioBuffer.byteLength === 0 || audioBuffer.length === 0) {
+      log.info('[flow] 空音訊，略過（可能為短按）');
+      showOverlay('done', '沒有偵測到語音');
+      hideOverlay(1200);
+      return;
+    }
     const audioPath = saveAudioBuffer(audioBuffer);
 
     showOverlay('processing');

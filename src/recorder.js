@@ -7,6 +7,10 @@ const { log } = require('./logger');
 
 let recorderWindow = null;
 let currentAudioPath = null;
+// 冷啟動競態防護（H5）：start 因視窗尚未載入而延後送出時，若 stop 先到，
+// 記住 pendingStop，待 start 真正送出後立刻補送 stop，確保短按一定能收尾。
+let startDispatched = false;
+let pendingStop = false;
 
 function tempDir() {
   const dir = path.join((app && app.getPath('temp')) || os.tmpdir(), 'notype');
@@ -36,12 +40,28 @@ function createRecorderWindow() {
 
 function startRecording() {
   const win = createRecorderWindow();
-  const send = () => win.webContents.send('start-recording');
+  startDispatched = false;
+  pendingStop = false;
+  const send = () => {
+    if (win.isDestroyed()) return;
+    win.webContents.send('start-recording');
+    startDispatched = true;
+    // start 送出後，若期間已收到 stop（短按），立刻補送 stop
+    if (pendingStop) {
+      pendingStop = false;
+      win.webContents.send('stop-recording');
+    }
+  };
   if (win.webContents.isLoading()) win.webContents.once('did-finish-load', send);
   else send();
 }
 
 function stopRecording() {
+  // start 尚未真正送出（視窗冷啟動中）→ 先記下，待 start 送出後補送，避免 stop 先於 start 而落空
+  if (!startDispatched) {
+    pendingStop = true;
+    return;
+  }
   if (recorderWindow && !recorderWindow.isDestroyed()) {
     recorderWindow.webContents.send('stop-recording');
   }

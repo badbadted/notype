@@ -11,6 +11,10 @@
   let mediaRecorder = null;
   let chunks = [];
   let stream = null;
+  // 冷啟動競態防護（H5）：getUserMedia 期間若 stop 先到，記住 stopRequested，
+  // 待麥克風 ready 後立刻停止，避免短按導致麥克風持續開啟、流程卡在錄音中。
+  let starting = false;
+  let stopRequested = false;
 
   function pickMime() {
     const prefs = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
@@ -21,9 +25,18 @@
   }
 
   async function start() {
+    if (starting) return;
+    starting = true;
+    stopRequested = false;
     try {
       chunks = [];
       stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+      // getUserMedia 期間若已收到 stop（短按）→ 不啟動 recorder，釋放麥克風並回送空音訊讓主程序收尾
+      if (stopRequested) {
+        releaseStream();
+        window.recApi.sendAudio(new Uint8Array(0));
+        return;
+      }
       const mimeType = pickMime();
       mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
@@ -31,6 +44,8 @@
       mediaRecorder.start();
     } catch (err) {
       window.recApi.reportError('麥克風存取失敗：' + (err && err.message ? err.message : err));
+    } finally {
+      starting = false;
     }
   }
 
@@ -47,10 +62,17 @@
   }
 
   function stop() {
+    // 麥克風仍在初始化（getUserMedia 未完成）→ 標記待停，由 start() ready 後處理
+    if (starting) {
+      stopRequested = true;
+      return;
+    }
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop();
+      mediaRecorder.stop(); // → onStop 送出音訊
     } else {
+      // 沒有進行中的錄音（例如 start 從未啟動）→ 釋放並回送空音訊讓主程序收尾，避免 overlay 卡錄音中
       releaseStream();
+      window.recApi.sendAudio(new Uint8Array(0));
     }
   }
 
