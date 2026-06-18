@@ -22,6 +22,8 @@ const PROVIDERS = {
 // 用繁體中文+英文混合的範例句引導其輸出繁體字並保留英文術語。
 const ZH_MIX_PROMPT = '以下是繁體中文與英文混合的語音內容，請以繁體中文輸出，並保留英文專有名詞與技術術語。例如：這個 bug 我們用 React 的 useEffect 修好了。';
 
+const STT_TIMEOUT_MS = 30000; // 30s：網路卡住時 abort 走錯誤路徑，避免 overlay 永久停在「處理中」
+
 async function transcribe(audioFilePath) {
   const store = getStore();
   const provider = store.get('sttProvider') || 'groq';
@@ -49,11 +51,24 @@ async function transcribe(audioFilePath) {
   }
 
   log.info('[stt]', cfg.label, 'lang=', language);
-  const res = await fetch(cfg.url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
-  });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), STT_TIMEOUT_MS);
+  let res;
+  try {
+    res = await fetch(cfg.url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (err && err.name === 'AbortError') {
+      throw new Error(`${cfg.label} 連線逾時（${STT_TIMEOUT_MS / 1000}s），請檢查網路`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 
   if (!res.ok) {
     const err = await res.text();
