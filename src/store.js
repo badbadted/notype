@@ -1,5 +1,50 @@
 // electron-store v8（最後一個 CommonJS 版本；v11 為 ESM-only 會 "Store is not a constructor"）
 const Store = require('electron-store');
+const { safeStorage } = require('electron');
+
+// API Key 加密：用 Electron safeStorage（DPAPI/keychain）加密後存設定檔，避免明文落地。
+// 加密值以 ENC_PREFIX 開頭 + base64，據此與舊明文值區分以利優雅遷移。
+const ENC_PREFIX = 'safeStorage:v1:';
+const KEY_FIELDS = ['openaiApiKey', 'groqApiKey'];
+
+function isEncrypted(value) {
+  return typeof value === 'string' && value.startsWith(ENC_PREFIX);
+}
+
+// safeStorage 需在 app ready 後才可用；未就緒或平台不支援時回 false（走明文 fallback，至少不崩潰）
+function encryptionAvailable() {
+  try {
+    return safeStorage && safeStorage.isEncryptionAvailable();
+  } catch {
+    return false;
+  }
+}
+
+// 將明文金鑰加密為可存檔字串；無法加密時原樣回傳（fallback：仍是明文，但不崩潰）
+function encryptKey(plain) {
+  if (!plain) return plain;
+  if (isEncrypted(plain)) return plain; // 已是加密格式，不重複加密
+  if (!encryptionAvailable()) return plain;
+  try {
+    const buf = safeStorage.encryptString(String(plain));
+    return ENC_PREFIX + buf.toString('base64');
+  } catch {
+    return plain;
+  }
+}
+
+// 解密存檔字串為明文；舊的明文值（無前綴）原樣回傳以優雅遷移
+function decryptKey(stored) {
+  if (!stored) return stored;
+  if (!isEncrypted(stored)) return stored; // 舊明文值：沿用，下次寫入時自動重新加密
+  if (!encryptionAvailable()) return ''; // 已加密但此機無法解密 → 視為無金鑰，避免回傳亂碼
+  try {
+    const buf = Buffer.from(stored.slice(ENC_PREFIX.length), 'base64');
+    return safeStorage.decryptString(buf);
+  } catch {
+    return '';
+  }
+}
 
 // 內建潤稿角色（persona）。共通規則：只輸出整理後文字、不回答問題、保持繁中。
 const BUILTIN_ROLES = [
@@ -80,6 +125,49 @@ function migrateRoles(store) {
   store.set('activeRoleId', activeRoleId);
 }
 
+// 讀取（自動解密）單一金鑰欄位。consumer（stt/llm/shortcut）應透過此函式取金鑰。
+function getApiKey(store, field) {
+  return decryptKey(store.get(field));
+}
+
+// 寫入（自動加密）單一金鑰欄位。
+function setApiKey(store, field, value) {
+  store.set(field, encryptKey(value));
+}
+
+// 回傳整份設定，但金鑰欄位先解密為明文（供設定頁 UI 顯示 / save 前比對）
+function getSettingsForRenderer(store) {
+  const all = { ...store.store };
+  for (const f of KEY_FIELDS) {
+    if (f in all) all[f] = decryptKey(all[f]);
+  }
+  return all;
+}
+
+// 寫入一批設定：金鑰欄位自動加密，其餘原樣寫入
+function applySettings(store, settings) {
+  for (const [key, value] of Object.entries(settings)) {
+    if (KEY_FIELDS.includes(key)) setApiKey(store, key, value);
+    else store.set(key, value);
+  }
+}
+
+// 優雅遷移：把舊的明文金鑰就地重新以 safeStorage 加密（safeStorage 可用時才動作）
+function migrateApiKeyEncryption(store) {
+  if (!encryptionAvailable()) return;
+  for (const f of KEY_FIELDS) {
+    const v = store.get(f);
+    if (v && !isEncrypted(v)) {
+      store.set(f, encryptKey(v)); // 不改變明文內容，僅升級為加密格式
+      log_migrated(f);
+    }
+  }
+}
+
+function log_migrated(field) {
+  try { require('./logger').log.info('[store] 已將明文金鑰升級為 safeStorage 加密：', field); } catch { /* logger 尚未就緒時略過 */ }
+}
+
 let _store = null;
 
 function getStore() {
@@ -87,8 +175,18 @@ function getStore() {
     // v8 不支援 encryptionKey；JSON 存使用者 config 目錄
     _store = new Store({ name: 'notype-config', defaults });
     migrateRoles(_store);
+    migrateApiKeyEncryption(_store); // app ready 後 getStore 時把舊明文金鑰升級加密
   }
   return _store;
 }
 
-module.exports = { getStore, defaults, BUILTIN_ROLES };
+module.exports = {
+  getStore,
+  defaults,
+  BUILTIN_ROLES,
+  getApiKey,
+  setApiKey,
+  getSettingsForRenderer,
+  applySettings,
+  encryptionAvailable,
+};

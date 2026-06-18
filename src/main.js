@@ -2,7 +2,7 @@ const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('path');
 const { log } = require('./logger');
 const { createTray, refreshTrayMenu } = require('./tray');
-const { getStore } = require('./store');
+const { getStore, getSettingsForRenderer, applySettings } = require('./store');
 const { createRecorderWindow } = require('./recorder');
 const { createOverlayWindow, showOverlay, hideOverlay } = require('./overlay');
 const { registerShortcut, unregisterShortcut, handleAudioData } = require('./shortcut');
@@ -66,14 +66,12 @@ function registerIpc() {
   // 應用程式版本
   ipcMain.handle('get-version', () => app.getVersion());
 
-  // 讀取全部設定
-  ipcMain.handle('get-settings', () => store.store);
+  // 讀取全部設定（金鑰欄位解密為明文供設定頁顯示）
+  ipcMain.handle('get-settings', () => getSettingsForRenderer(store));
 
-  // 儲存設定（部分更新）
+  // 儲存設定（部分更新；金鑰欄位自動以 safeStorage 加密）
   ipcMain.handle('save-settings', (_event, settings) => {
-    for (const [key, value] of Object.entries(settings)) {
-      store.set(key, value);
-    }
+    applySettings(store, settings);
     // 同步開機啟動
     app.setLoginItemSettings({ openAtLogin: store.get('launchAtStartup') === true });
     // 快捷鍵可能變更 → 重新註冊（切片 6 接上 registerShortcut 後生效）

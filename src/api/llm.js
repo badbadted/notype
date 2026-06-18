@@ -1,5 +1,5 @@
 // LLM 文字潤稿 — OpenAI / Groq 共用 chat/completions 端點
-const { getStore } = require('../store');
+const { getStore, getApiKey } = require('../store');
 const { log } = require('../logger');
 
 const PROVIDERS = {
@@ -50,7 +50,7 @@ async function polishText(rawText) {
   // 角色可自帶 model，否則用全域預設 llmProvider
   const provider = (role && role.model) || store.get('llmProvider') || 'groq';
   const cfg = PROVIDERS[provider] || PROVIDERS.groq;
-  const apiKey = store.get(cfg.keyField);
+  const apiKey = getApiKey(store, cfg.keyField);
   if (!apiKey) {
     log.warn('[llm] 無 API Key，略過潤稿');
     return rawText;

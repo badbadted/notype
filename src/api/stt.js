@@ -1,6 +1,6 @@
 // 語音轉文字（雲端）— OpenAI / Groq 共用同一 OpenAI 相容端點，差異只在 URL/model/key
 const fs = require('fs');
-const { getStore } = require('../store');
+const { getStore, getApiKey } = require('../store');
 const { log } = require('../logger');
 
 const PROVIDERS = {
@@ -26,7 +26,7 @@ async function transcribe(audioFilePath) {
   const store = getStore();
   const provider = store.get('sttProvider') || 'groq';
   const cfg = PROVIDERS[provider] || PROVIDERS.groq;
-  const apiKey = store.get(cfg.keyField);
+  const apiKey = getApiKey(store, cfg.keyField);
   if (!apiKey) throw new Error(`未設定 ${cfg.label} 的 API Key`);
 
   const language = store.get('language') || 'zh';
