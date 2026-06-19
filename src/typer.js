@@ -98,7 +98,10 @@ function restoreClipboard(backup) {
 // 當成原內容，最終把注入值回寫剪貼簿。用 Promise 鏈確保同一時間只跑一次完整流程，
 // 並在還原前比對「目前剪貼簿是否仍是我們剛注入的文字」避免回寫自己的注入值。
 let _chain = Promise.resolve();
-const RESTORE_DELAY = 1000;
+// 貼上完成後再等的緩衝（讓目標 App 把剪貼簿真正讀完）。
+// 原為 1000ms，會讓潤稿後的敏感文字在剪貼簿滯留近 1 秒（M1）。
+// simulateCtrlV 內部已有 ~410ms 的 sleep 確保貼上落地，此處只需短緩衝即可立即還原。
+const RESTORE_DELAY = 150;
 
 // 透過剪貼簿 + Ctrl+V 把文字送進當前游標位置，事後還原剪貼簿（序列化，多格式保留）
 // 回傳的 Promise 在「貼上完成」即 resolve（UX 快），但備份→還原全程掛在 _chain 上序列化：
