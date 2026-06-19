@@ -47,9 +47,13 @@ function looksLikeRefusal(out, raw) {
   const hitCount = WEAK.filter((re) => re.test(out)).length;
   const hitAtHead = WEAK.some((re) => re.test(head));
   const muchShorter = out.trim().length < raw.trim().length * 0.5; // 輸出不到原文一半 → 像甩鍋
+  const veryShort = out.trim().length < 10; // 絕對長度極短，正常潤稿不會這麼短
 
   if (hitCount === 0) return false;
-  return hitAtHead || hitCount >= 2 || muchShorter;
+  // muchShorter 不再單獨與「單一弱訊號」構成充分判定——正常潤稿移除口語填充常使輸出 <原文一半
+  // （如「嗯那個就是請給我那個報表喔」→「請給我報表」會命中弱訊號「請給我」且 <50%），會被誤殺。
+  // 改為：muchShorter 僅在輸出絕對長度也極短時才視為 refusal 證據（真 refusal 通常短促）。
+  return hitAtHead || hitCount >= 2 || (muchShorter && veryShort);
 }
 
 // 取得目前生效的潤稿角色（persona）
