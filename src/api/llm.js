@@ -27,10 +27,29 @@ function tooShortToPolish(text) {
   return text.trim().length <= 3;
 }
 
-// 偵測模型是否在「反問要逐字稿」而非真的潤稿 → 視為失敗，回原文
+// 偵測模型是否在「反問要逐字稿」而非真的潤稿 → 視為失敗，回原文。
+//
+// 嚴謹化（M4）：避免把正常口述（如「請提供報表給我」「我沒有收到」「請給我三天」）誤判丟棄。
+//   - 強訊號（幾乎只在反問模型才出現）：單一命中即判 refusal。
+//   - 弱訊號（正常口述也常見）：須「出現在開頭」、或「同時命中 ≥2 個弱訊號」、
+//     或「輸出明顯比原文短」（refusal 通常短促、與原文落差大）才判，降低誤殺。
 function looksLikeRefusal(out, raw) {
+  if (!out) return false;
   if (raw.includes('逐字稿')) return false; // 使用者本來就講到逐字稿，不誤判
-  return /逐字稿|請提供|請貼上|請給我|沒有(看到|收到|提供)/.test(out);
+
+  // 強訊號：直接反問要逐字稿／要求貼上，正常潤稿結果幾乎不會出現
+  const STRONG = /逐字稿|請貼上(?:逐字稿|文字|內容)?|請(?:提供|給我)(?:逐字稿|要潤稿|需要潤稿)/;
+  if (STRONG.test(out)) return true;
+
+  // 弱訊號：常見於日常內容，需多重條件佐證才視為 refusal
+  const WEAK = [/請提供/, /請給我/, /請告訴我/, /沒有(?:看到|收到|提供)/];
+  const head = out.trim().slice(0, 12); // 反問通常開門見山
+  const hitCount = WEAK.filter((re) => re.test(out)).length;
+  const hitAtHead = WEAK.some((re) => re.test(head));
+  const muchShorter = out.trim().length < raw.trim().length * 0.5; // 輸出不到原文一半 → 像甩鍋
+
+  if (hitCount === 0) return false;
+  return hitAtHead || hitCount >= 2 || muchShorter;
 }
 
 // 取得目前生效的潤稿角色（persona）
