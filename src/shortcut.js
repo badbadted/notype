@@ -151,8 +151,11 @@ async function handleAudioData(audioBuffer) {
   isProcessing = true;
 
   // 本輪專屬暫存檔路徑，全程用區域變數傳遞，cleanup 只刪自己這輪的檔
-  const audioPath = saveAudioBuffer(audioBuffer);
+  // 注意：saveAudioBuffer 內部 Buffer.from / fs.writeFileSync 可能丟錯（磁碟滿、無權限），
+  // 必須放進 try，否則旗標永遠卡 true → 後續所有 F9 觸發被忽略，只能重啟 App（D1）。
+  let audioPath;
   try {
+    audioPath = saveAudioBuffer(audioBuffer);
     showOverlay('processing');
     const rawText = await transcribe(audioPath);
     log.info('[flow] STT 結果長度', rawText.length);
@@ -185,8 +188,10 @@ async function handleAudioData(audioBuffer) {
     showOverlay('error', err && err.message ? err.message.slice(0, 40) : '處理失敗');
     hideOverlay(3500);
   } finally {
-    cleanupTempAudio(audioPath); // 只刪本輪自己的檔，不影響其他輪
-    isProcessing = false;
+    // audioPath 可能因 saveAudioBuffer 丟錯而為 undefined；
+    // 不可直接傳 undefined 給 cleanupTempAudio（會退回刪 currentAudioPath，誤刪他輪檔）。
+    if (audioPath) cleanupTempAudio(audioPath); // 只刪本輪自己的檔，不影響其他輪
+    isProcessing = false; // 任何錯誤路徑都會走到這，旗標必釋放
   }
 }
 
