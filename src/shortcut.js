@@ -13,6 +13,7 @@ const user32 = koffi.load('user32.dll');
 const GetAsyncKeyState = user32.func('short __stdcall GetAsyncKeyState(int vKey)');
 
 let isRecording = false;
+let isProcessing = false; // STT/LLM pipeline 進行中旗標，避免並發兩輪互踩暫存檔（M3）
 let keyPollTimer = null;
 let pollVks = [0x78]; // 預設 F9，由 registerShortcut 依設定更新
 
@@ -131,16 +132,27 @@ function stopRec() {
 // 由 main.js 的 ipcMain.on('audio-data') 呼叫
 async function handleAudioData(audioBuffer) {
   const store = getStore();
-  try {
-    // 空音訊（短按未真正錄到聲音 / 冷啟動競態收尾）→ 直接收尾，不送 STT
-    if (!audioBuffer || audioBuffer.byteLength === 0 || audioBuffer.length === 0) {
-      log.info('[flow] 空音訊，略過（可能為短按）');
-      showOverlay('done', '沒有偵測到語音');
-      hideOverlay(1200);
-      return;
-    }
-    const audioPath = saveAudioBuffer(audioBuffer);
 
+  // 空音訊（短按未真正錄到聲音 / 冷啟動競態收尾）→ 直接收尾，不送 STT，也不佔用 processing 旗標
+  if (!audioBuffer || audioBuffer.byteLength === 0 || audioBuffer.length === 0) {
+    log.info('[flow] 空音訊，略過（可能為短按）');
+    showOverlay('done', '沒有偵測到語音');
+    hideOverlay(1200);
+    return;
+  }
+
+  // 上一輪 STT/LLM 還在跑時又來一輪 → 忽略，避免兩輪寫/刪暫存檔互踩（M3）
+  if (isProcessing) {
+    log.warn('[flow] 前一輪仍在處理中，忽略本次（避免並發互踩暫存檔）');
+    showOverlay('error', '處理中，請稍候');
+    hideOverlay(1500);
+    return;
+  }
+  isProcessing = true;
+
+  // 本輪專屬暫存檔路徑，全程用區域變數傳遞，cleanup 只刪自己這輪的檔
+  const audioPath = saveAudioBuffer(audioBuffer);
+  try {
     showOverlay('processing');
     const rawText = await transcribe(audioPath);
     log.info('[flow] STT 結果長度', rawText.length);
@@ -173,7 +185,8 @@ async function handleAudioData(audioBuffer) {
     showOverlay('error', err && err.message ? err.message.slice(0, 40) : '處理失敗');
     hideOverlay(3500);
   } finally {
-    cleanupTempAudio();
+    cleanupTempAudio(audioPath); // 只刪本輪自己的檔，不影響其他輪
+    isProcessing = false;
   }
 }
 

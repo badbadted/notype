@@ -67,21 +67,27 @@ function stopRecording() {
   }
 }
 
-// 將 renderer 傳回的音訊 buffer 存成暫存 webm 檔
+// 將 renderer 傳回的音訊 buffer 存成暫存 webm 檔。
+// 檔名帶唯一 id（pid + 時間戳 + 隨機），避免兩輪並發共用同一固定路徑而互相覆蓋／誤刪（M3）。
+// 回傳的路徑由呼叫端以區域變數持有並傳給 cleanupTempAudio，不再依賴模組共用變數。
 function saveAudioBuffer(audioBuffer) {
-  cleanupTempAudio();
   const buf = Buffer.from(audioBuffer);
-  currentAudioPath = path.join(tempDir(), `rec-${process.pid}.webm`);
-  fs.writeFileSync(currentAudioPath, buf);
-  log.info('[recorder] 音訊已存', currentAudioPath, buf.length, 'bytes');
-  return currentAudioPath;
+  const id = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const audioPath = path.join(tempDir(), `rec-${id}.webm`);
+  fs.writeFileSync(audioPath, buf);
+  currentAudioPath = audioPath; // 仍記錄最後一次，供未帶參數的呼叫沿用（相容）
+  log.info('[recorder] 音訊已存', audioPath, buf.length, 'bytes');
+  return audioPath;
 }
 
-function cleanupTempAudio() {
-  if (currentAudioPath && fs.existsSync(currentAudioPath)) {
-    try { fs.unlinkSync(currentAudioPath); } catch { /* 忽略 */ }
+// 刪除指定的暫存音訊檔；未帶參數時退回清掉最後一次記錄的路徑（相容舊呼叫）。
+// 帶 audioPath 時只刪自己這輪的檔，不會誤刪另一輪並發產生的檔（M3）。
+function cleanupTempAudio(audioPath) {
+  const target = audioPath || currentAudioPath;
+  if (target && fs.existsSync(target)) {
+    try { fs.unlinkSync(target); } catch { /* 忽略 */ }
   }
-  currentAudioPath = null;
+  if (target === currentAudioPath) currentAudioPath = null;
 }
 
 module.exports = { createRecorderWindow, startRecording, stopRecording, saveAudioBuffer, cleanupTempAudio };
