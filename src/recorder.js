@@ -90,4 +90,19 @@ function cleanupTempAudio(audioPath) {
   if (target === currentAudioPath) currentAudioPath = null;
 }
 
-module.exports = { createRecorderWindow, startRecording, stopRecording, saveAudioBuffer, cleanupTempAudio };
+// 啟動時清除上一輪殘留的暫存錄音檔。正常流程由 shortcut.js 的 finally 刪除，但若在
+// transcribe/polishText 期間崩潰或被 taskkill，含使用者語音的 rec-*.webm 會殘留在 temp 目錄，
+// 且檔名帶 pid，下次以不同 pid 啟動不會覆蓋到舊檔。對隱私敏感的語音工具，啟動時整批掃掉。
+// 單例鎖（requestSingleInstanceLock）確保同時只有一個實例，啟動掃描不會誤刪他實例進行中的檔。
+function cleanupOrphanTempAudio() {
+  try {
+    const dir = tempDir();
+    for (const f of fs.readdirSync(dir)) {
+      if (/^rec-.*\.webm$/.test(f)) {
+        try { fs.unlinkSync(path.join(dir, f)); } catch { /* 忽略個別刪除失敗 */ }
+      }
+    }
+  } catch { /* 目錄不存在等，忽略 */ }
+}
+
+module.exports = { createRecorderWindow, startRecording, stopRecording, saveAudioBuffer, cleanupTempAudio, cleanupOrphanTempAudio };

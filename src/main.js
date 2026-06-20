@@ -3,7 +3,7 @@ const path = require('path');
 const { log } = require('./logger');
 const { createTray, refreshTrayMenu } = require('./tray');
 const { getStore, getSettingsForRenderer, applySettings } = require('./store');
-const { createRecorderWindow } = require('./recorder');
+const { createRecorderWindow, cleanupOrphanTempAudio } = require('./recorder');
 const { createOverlayWindow, showOverlay, hideOverlay } = require('./overlay');
 const { registerShortcut, unregisterShortcut, handleAudioData } = require('./shortcut');
 
@@ -130,6 +130,9 @@ if (!gotTheLock) {
       onSettings: () => createSettingsWindow(),
       onQuit: () => app.quit(),
     });
+
+    // 清除上一輪崩潰殘留的暫存錄音檔（隱私）
+    cleanupOrphanTempAudio();
 
     // 預建隱藏錄音視窗 + 浮窗，並註冊全域快捷鍵
     createRecorderWindow();
