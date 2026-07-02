@@ -15,6 +15,35 @@
   // 待麥克風 ready 後立刻停止，避免短按導致麥克風持續開啟、流程卡在錄音中。
   let starting = false;
   let stopRequested = false;
+  // 收音防呆：錄音期間量測音量，整段近乎無聲＝麥克風沒開/靜音/選錯裝置
+  let audioCtx = null;
+  let levelTimer = null;
+  let maxLevel = 0;
+  const SILENCE_THRESHOLD = 0.008; // RMS：真人語音遠高於此，全程低於＝無聲
+
+  // 用 Web Audio 量測 stream 的即時音量，記錄整段最大值
+  function startMeter(mediaStream) {
+    try {
+      maxLevel = 0;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const src = audioCtx.createMediaStreamSource(mediaStream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 512;
+      src.connect(analyser);
+      const buf = new Uint8Array(analyser.fftSize);
+      levelTimer = setInterval(() => {
+        analyser.getByteTimeDomainData(buf);
+        let sum = 0;
+        for (const v of buf) { const x = (v - 128) / 128; sum += x * x; }
+        const rms = Math.sqrt(sum / buf.length);
+        if (rms > maxLevel) maxLevel = rms;
+      }, 50);
+    } catch { /* 量測失敗不影響錄音 */ }
+  }
+  function stopMeter() {
+    if (levelTimer) { clearInterval(levelTimer); levelTimer = null; }
+    if (audioCtx) { try { audioCtx.close(); } catch { /* 忽略 */ } audioCtx = null; }
+  }
 
   function pickMime() {
     const prefs = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
@@ -42,6 +71,7 @@
       mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
       mediaRecorder.onstop = onStop;
       mediaRecorder.start();
+      startMeter(stream); // 開始量測收音音量
     } catch (err) {
       window.recApi.reportError('麥克風存取失敗：' + (err && err.message ? err.message : err));
     } finally {
@@ -50,6 +80,14 @@
   }
 
   async function onStop() {
+    const level = maxLevel;
+    stopMeter();
+    // 收音防呆：整段幾乎無聲 → 麥克風沒開/靜音/選錯裝置，直接明確警告，不送去辨識
+    if (level < SILENCE_THRESHOLD) {
+      releaseStream();
+      window.recApi.reportError('沒收到聲音 — 請確認麥克風已開啟、未靜音，並在系統選對輸入裝置');
+      return;
+    }
     try {
       const blob = new Blob(chunks, { type: chunks[0] ? chunks[0].type : 'audio/webm' });
       const ab = await blob.arrayBuffer();
@@ -77,6 +115,7 @@
   }
 
   function releaseStream() {
+    stopMeter();
     if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
   }
 
