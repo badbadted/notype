@@ -18,9 +18,13 @@ const PROVIDERS = {
   },
 };
 
-// 中英混雜引導：Whisper 的 prompt 會偏置輸出詞彙與書寫系統，
-// 用繁體中文+英文混合的範例句引導其輸出繁體字並保留英文術語。
-const ZH_MIX_PROMPT = '以下是繁體中文與英文混合的語音內容，請以繁體中文輸出，並保留英文專有名詞與技術術語。例如：這個 bug 我們用 React 的 useEffect 修好了。';
+// 中英混雜引導：Whisper 的 prompt 會偏置輸出詞彙與書寫系統。
+// 注意：prompt 不可含「完整範例句」——Whisper 在無聲/極短音訊會把 prompt 原樣回吐（回聲幻覺），
+// 範例句會被當成辨識結果輸出。故只放簡短風格提示，不放整句範例。
+const ZH_MIX_PROMPT = '繁體中文，中英混雜，保留英文專有名詞與技術術語。';
+
+// 正規化後比對，判斷輸出是否只是 prompt 的回聲（= 沒收到有效語音）
+const normText = (s) => (s || '').replace(/[\s，。、,.!?！？]/g, '');
 
 const STT_TIMEOUT_MS = 30000; // 30s：網路卡住時 abort 走錯誤路徑，避免 overlay 永久停在「處理中」
 
@@ -34,6 +38,11 @@ async function transcribe(audioFilePath) {
   const language = store.get('language') || 'zh';
 
   const audioData = fs.readFileSync(audioFilePath);
+  // 空音訊/極短按（recorder 冷啟動競態會回送 0 byte）→ 不送 Whisper（會回吐 prompt 幻覺）
+  if (audioData.length < 800) {
+    log.info('[stt] 音訊過短或空（', audioData.length, 'bytes），視為未偵測到語音');
+    return '';
+  }
   const blob = new Blob([audioData], { type: 'audio/webm' });
   const form = new FormData();
   form.append('file', blob, 'recording.webm');
@@ -76,7 +85,16 @@ async function transcribe(audioFilePath) {
   }
 
   const data = await res.json();
-  return (data.text || '').trim();
+  const text = (data.text || '').trim();
+
+  // 回聲偵測：無有效語音時 Whisper 會把 prompt 原樣吐回 → 視為未偵測到語音
+  const nText = normText(text);
+  const nPrompt = normText(ZH_MIX_PROMPT);
+  if (nText && (nText === nPrompt || nPrompt.includes(nText) || nText.includes(nPrompt))) {
+    log.info('[stt] 偵測到 prompt 回聲，視為無語音：', text.slice(0, 30));
+    return '';
+  }
+  return text;
 }
 
 module.exports = { transcribe, PROVIDERS };

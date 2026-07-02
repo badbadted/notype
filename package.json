@@ -1,6 +1,6 @@
 {
   "name": "notype",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "AI 語音輸入工具 — 用說的取代打字（Windows）",
   "main": "src/main.js",
   "type": "commonjs",
