@@ -93,6 +93,7 @@ const defaults = {
   // 系統
   hotkey: 'F9', // Alt+Space 被 Windows 保留無法註冊，預設改 F9 單鍵按住說話
   submitToggleHotkey: 'F10', // 快速開關「說完自動送出」（角色切換改用系統匣/設定頁）
+  polishHotkey: 'F8', // 選字即潤稿：選取文字後按此鍵，AI 依目前角色潤稿並就地取代
   launchAtStartup: false,
 };
 

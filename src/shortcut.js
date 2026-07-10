@@ -1,12 +1,12 @@
 // 全域快捷鍵 + 錄音流程控制（按住 Alt+Space 錄音，放開停止）
-const { globalShortcut } = require('electron');
+const { globalShortcut, clipboard } = require('electron');
 const koffi = require('koffi');
 const { getStore } = require('./store');
 const { startRecording, stopRecording, saveAudioBuffer, cleanupTempAudio } = require('./recorder');
 const { showOverlay, hideOverlay } = require('./overlay');
 const { transcribe } = require('./api/stt');
 const { polishText, getActiveRole } = require('./api/llm');
-const { typeText, copyToClipboard, pressEnter } = require('./typer');
+const { typeText, copyToClipboard, pressEnter, copySelection, paste, backupClipboard, restoreClipboard } = require('./typer');
 const { log } = require('./logger');
 
 const user32 = koffi.load('user32.dll');
@@ -61,6 +61,7 @@ function registerShortcut() {
         log.info(`[shortcut] 已註冊 ${accel}（按住說話）`);
       }
       registerSubmitToggleHotkey(); // 一併註冊「說完自動送出」開關熱鍵
+      registerPolishHotkey(); // 一併註冊「選字即潤稿」熱鍵
       return accel;
     }
   }
@@ -85,6 +86,61 @@ function registerSubmitToggleHotkey() {
   }
   log.warn('[shortcut] 送出開關熱鍵全部註冊失敗（仍可從設定頁切換）');
   return null;
+}
+
+// 選字即潤稿的熱鍵（自我修復）
+const POLISH_FALLBACKS = ['F8', 'CommandOrControl+Shift+P', 'Alt+X'];
+function registerPolishHotkey() {
+  const store = getStore();
+  const wanted = store.get('polishHotkey') || 'F8';
+  const candidates = [wanted, ...POLISH_FALLBACKS.filter((f) => f !== wanted)];
+  for (const accel of candidates) {
+    let ok = false;
+    try { ok = globalShortcut.register(accel, polishSelection); } catch { ok = false; }
+    if (ok) {
+      if (accel !== wanted) { store.set('polishHotkey', accel); log.warn(`[shortcut] 選字潤稿熱鍵改用 ${accel}`); }
+      else log.info(`[shortcut] 已註冊選字潤稿熱鍵 ${accel}`);
+      return accel;
+    }
+  }
+  log.warn('[shortcut] 選字潤稿熱鍵註冊失敗');
+  return null;
+}
+
+// 選字即潤稿：複製目前選取 → 依生效角色潤稿 → 就地貼回取代，最後還原使用者原剪貼簿
+async function polishSelection() {
+  if (isRecording || isProcessing) return;
+  const store = getStore();
+  if (store.get('llmEnabled') !== true) { showOverlay('error', '潤稿未啟用'); hideOverlay(2500); return; }
+
+  const role = getActiveRole(store);
+  const provider = (role && role.model) || store.get('llmProvider') || 'groq';
+  const keyField = provider === 'openai' ? 'openaiApiKey' : 'groqApiKey';
+  if (!store.get(keyField)) { showOverlay('error', '尚未設定 API Key'); hideOverlay(2500); return; }
+
+  isProcessing = true;
+  const backup = backupClipboard(); // 使用者原本剪貼簿（多格式）
+  try {
+    const selected = await copySelection(); // Ctrl+C → 讀取選取文字
+    if (!selected.trim()) {
+      showOverlay('error', '沒有選取文字');
+      hideOverlay(2000);
+      return;
+    }
+    showOverlay('polishing', role ? role.name : '');
+    const out = await polishText(selected);
+    clipboard.writeText(out);
+    await paste(); // Ctrl+V 取代選取
+    showOverlay('done', '已潤稿取代');
+    hideOverlay(1500);
+  } catch (err) {
+    log.error('[polish-sel] 失敗', err);
+    showOverlay('error', err && err.message ? err.message.slice(0, 40) : '潤稿失敗');
+    hideOverlay(3000);
+  } finally {
+    setTimeout(() => { try { restoreClipboard(backup); } catch { /* 忽略 */ } }, 250);
+    isProcessing = false;
+  }
 }
 
 // 切換「說完自動送出」開/關，浮窗閃示狀態

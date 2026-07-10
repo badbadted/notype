@@ -12,6 +12,7 @@ const VK_MENU = 0x12;    // Alt（通用）
 const VK_SPACE = 0x20;
 const VK_CONTROL = 0x11;
 const VK_V = 0x56;
+const VK_C = 0x43;
 const VK_RETURN = 0x0D;
 const KEYEVENTF_KEYUP = 0x0002;
 
@@ -149,4 +150,34 @@ async function pressEnter() {
   keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, 0);
 }
 
-module.exports = { typeText, copyToClipboard, pressEnter, releaseAllModifiers };
+// 模擬 Ctrl+C 複製當前選取
+async function simulateCtrlC() {
+  releaseAllModifiers();
+  await sleep(120);
+  keybd_event(VK_CONTROL, 0, 0, 0);
+  await sleep(40);
+  keybd_event(VK_C, 0, 0, 0);
+  await sleep(40);
+  keybd_event(VK_C, 0, KEYEVENTF_KEYUP, 0);
+  await sleep(40);
+  keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, 0);
+  await sleep(40);
+  releaseAllModifiers();
+}
+
+// 複製目前選取的文字並回傳（選字潤稿用）。呼叫端須自行備份/還原剪貼簿。
+async function copySelection() {
+  await simulateCtrlC();
+  await sleep(120); // 等目標 App 把選取寫入剪貼簿
+  return clipboard.readText() || '';
+}
+
+// 直接貼上（Ctrl+V），不做剪貼簿備份/還原（由呼叫端管理）
+async function paste() {
+  await simulateCtrlV();
+}
+
+module.exports = {
+  typeText, copyToClipboard, pressEnter, releaseAllModifiers,
+  copySelection, paste, backupClipboard, restoreClipboard,
+};
