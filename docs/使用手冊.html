@@ -66,6 +66,8 @@
     <a href="#key">② 取得 API Key</a>
     <a href="#setup">③ 首次設定</a>
     <a href="#use">④ 開始使用</a>
+    <a href="#hotkeys">三個熱鍵</a>
+    <a href="#roles">潤稿角色</a>
     <a href="#settings">設定項說明</a>
     <a href="#trouble">疑難排解</a>
     <a href="#uninstall">解除安裝</a>
@@ -74,18 +76,19 @@
   <main>
     <header class="hero">
       <h1>🎙️ NoType 安裝與使用手冊</h1>
-      <p>用說的取代打字 — 按住 <span class="kbd">F9</span> 說話，自動辨識 + AI 潤稿，文字直接出現在游標處。</p>
+      <p>用說的取代打字 — 按住 <span class="kbd">F9</span> 說話，自動辨識 + AI 潤稿，文字直接出現在游標處。也能純打字用 <span class="kbd">F8</span> 選字潤稿。</p>
       <div class="badges">
         <span class="badge">Windows 10 / 11</span>
-        <span class="badge">v0.1.0</span>
+        <span class="badge">v0.1.10</span>
         <span class="badge">自帶 API Key（BYOK）</span>
         <span class="badge">常駐系統匣</span>
+        <span class="badge">潤稿角色可自訂</span>
       </div>
     </header>
 
     <section id="intro">
       <h2><span class="n">i</span>這是什麼</h2>
-      <p>NoType 是常駐在 Windows 系統匣的語音輸入小工具。在任何可以打字的地方（Word、瀏覽器、聊天視窗、程式編輯器…），<b>按住 F9 說話、放開停止</b>，它會把你的語音透過雲端 Whisper 轉成文字、用 AI 潤稿（移除贅詞、加標點），再自動貼進你的游標位置。</p>
+      <p>NoType 是常駐在 Windows 系統匣的語音輸入小工具。在任何可以打字的地方（Word、瀏覽器、聊天視窗、程式編輯器…），<b>按住 F9 說話、放開停止</b>，它會把你的語音透過雲端 Whisper 轉成文字、用 AI 潤稿（移除贅詞、加標點），再自動貼進你的游標位置。此外還能<b>選取一段已打好的文字、按 F8 讓 AI 潤稿並就地取代</b>——純打字也能一鍵潤色。</p>
       <div class="flow">
         <span class="b">按住 F9 說話</span><span class="arr">→</span>
         <span class="b">放開</span><span class="arr">→</span>
@@ -111,13 +114,13 @@
       <p>兩種方式擇一：</p>
       <h3>方式 A — 安裝檔（建議）</h3>
       <ol class="steps">
-        <li>執行 <code>NoType Setup 0.1.0.exe</code></li>
+        <li>執行 <code>NoType Setup 0.1.10.exe</code>（覆蓋安裝會自動升級舊版）</li>
         <li>一鍵安裝完成，桌面/開始選單會出現 NoType 捷徑</li>
         <li>啟動後圖示常駐在右下角系統匣（藍色麥克風）</li>
       </ol>
       <h3>方式 B — 免安裝（Portable）</h3>
       <ol class="steps">
-        <li>把 <code>NoType-Portable-0.1.0.exe</code> 放到任意資料夾</li>
+        <li>把 <code>NoType-Portable-0.1.10.exe</code> 放到任意資料夾</li>
         <li>雙擊直接執行，無需安裝</li>
         <li>適合放隨身碟或不想安裝的情境</li>
       </ol>
@@ -142,7 +145,7 @@
         <li><b>辨識服務</b>：選 Groq（預設）或 OpenAI</li>
         <li><b>API Key</b>：貼上金鑰，按「<b>測試</b>」→ 出現綠色「<span class="tag ok">✓ 金鑰有效</span>」表示 OK</li>
         <li><b>辨識語言</b>：中英混雜建議選「自動偵測」；純中文選「繁體中文」</li>
-        <li><b>AI 潤稿</b>：建議開啟，會自動移除「嗯、啊、那個」等贅詞並加標點</li>
+        <li><b>AI 潤稿</b>：建議開啟。下方「潤稿角色」選一個當作預設風格（口語轉書面 / 即時通訊 / 商務 Email / 會議記錄 / 程式技術），也可新增自己的角色</li>
         <li><b>輸入方式</b>：「自動貼上到游標」或「只複製到剪貼簿」</li>
         <li>按「<b>儲存設定</b>」完成</li>
       </ol>
@@ -160,17 +163,50 @@
       <div class="note">浮窗狀態：<b>錄音中</b>(紅色波形) → <b>辨識中</b> → <b>潤稿中</b> → <b>完成</b>(綠勾) / <b>錯誤</b>(紅叉)。完成後浮窗自動消失。</div>
     </section>
 
+    <section id="hotkeys">
+      <h2><span class="n">⌨</span>三個熱鍵</h2>
+      <table>
+        <tr><th>熱鍵</th><th>功能</th><th>怎麼用</th></tr>
+        <tr><td>按住 <span class="kbd">F9</span></td><td>語音輸入</td><td>按住說話 → 放開 → 辨識+潤稿 → 貼進游標</td></tr>
+        <tr><td><span class="kbd">F8</span></td><td>選字潤稿</td><td>選取一段文字 → 按 F8 → AI 依角色改寫 → 就地取代（純打字用）</td></tr>
+        <tr><td><span class="kbd">F10</span></td><td>切換「說完自動送出」</td><td>按一下開/關；開啟時語音貼上後會自動按 Enter 送出（聊天視窗用）</td></tr>
+      </table>
+      <div class="note">若某個 F 鍵被其他程式（如錄影軟體）佔用，NoType 會自動改用其他可用鍵，設定頁會顯示目前實際生效的按鍵。</div>
+    </section>
+
+    <section id="roles">
+      <h2><span class="n">🎭</span>潤稿角色</h2>
+      <p>潤稿不是只有一種風格——你可以在多個「角色」間切換，每個角色有自己的改寫指令。語音輸入(F9)與選字潤稿(F8)都會用<b>目前生效的角色</b>。</p>
+      <table>
+        <tr><th>內建角色</th><th>潤稿成</th></tr>
+        <tr><td>口語轉書面</td><td>通順書面、移除贅詞（預設）</td></tr>
+        <tr><td>即時通訊</td><td>口語、簡短、可留 emoji</td></tr>
+        <tr><td>商務 Email</td><td>正式、有禮、結構化</td></tr>
+        <tr><td>會議記錄</td><td>條列重點</td></tr>
+        <tr><td>程式 / 技術</td><td>保留英文術語、精準</td></tr>
+      </table>
+      <h3>切換角色（三種方式）</h3>
+      <ul>
+        <li><b>系統匣</b>：右鍵圖示 →「潤稿角色」→ 點選</li>
+        <li><b>設定頁</b>：AI 潤稿區的角色清單，點一下設為生效</li>
+      </ul>
+      <h3>新增/編輯自己的角色</h3>
+      <p>設定頁「AI 潤稿」→「＋ 新增角色」→ 填名稱、選模型、寫潤稿指令（例如：「把口語改寫成活潑的社群貼文，可加 emoji，繁體中文，只輸出貼文本身」）→ 儲存。之後就能像內建角色一樣切換使用。</p>
+    </section>
+
     <section id="settings">
       <h2><span class="n">⚙</span>設定項說明</h2>
       <table>
         <tr><th>設定</th><th>說明</th></tr>
         <tr><td>辨識服務</td><td>Groq Whisper（large-v3）或 OpenAI Whisper，各自填對應金鑰</td></tr>
         <tr><td>辨識語言</td><td>繁中 / 自動偵測（中英混雜）/ English / 日本語</td></tr>
-        <tr><td>AI 潤稿</td><td>開關。風格：口語轉書面 / 保留原語氣 / 精簡贅字 / 翻譯成英文 / <b>自訂</b>（自己寫 prompt）</td></tr>
-        <tr><td>輸入方式</td><td>自動貼上到游標 vs 只複製到剪貼簿</td></tr>
-        <tr><td>快捷鍵</td><td>按住 <span class="kbd">F9</span> 說話（Windows 保留了 Alt+Space，故用 F9）</td></tr>
+        <tr><td>AI 潤稿</td><td>開關 + <b>潤稿角色</b>清單（內建 5 個，可新增/編輯/刪除）。每個角色可各自選 Groq Llama 或 GPT-4o-mini</td></tr>
+        <tr><td>輸入方式</td><td>自動貼上到游標 vs 只複製到剪貼簿；「說完自動送出」開關（<span class="kbd">F10</span> 可快速切換）</td></tr>
+        <tr><td>語音輸入快捷鍵</td><td>按住 <span class="kbd">F9</span> 說話（Windows 保留了 Alt+Space，故用 F9）</td></tr>
+        <tr><td>選字潤稿</td><td>按 <span class="kbd">F8</span>：選取文字後 AI 依角色潤稿並就地取代</td></tr>
         <tr><td>開機自動啟動</td><td>開啟後每次開機自動常駐</td></tr>
       </table>
+      <div class="note">API Key 以 Windows safeStorage 加密存放於本機，不以明文儲存、不上傳。</div>
     </section>
 
     <section id="trouble">
@@ -181,7 +217,9 @@
         <tr><td>按 F9 沒反應</td><td>F9 可能被其他程式佔用。本程式會自動退到其他可用鍵——查 debug log 看實際註冊的是哪個鍵</td></tr>
         <tr><td>文字沒貼出來</td><td>確認游標有停在輸入框；某些以系統管理員權限執行的視窗無法被一般程式貼字，試試其他視窗</td></tr>
         <tr><td>辨識不準 / 中英混雜怪</td><td>辨識語言改「自動偵測」；講話清楚、環境安靜；太短的句子（少於幾個字）較不穩</td></tr>
-        <tr><td>完全沒聲音被辨識</td><td>檢查 Windows 麥克風權限與預設輸入裝置</td></tr>
+        <tr><td>出現「沒收到聲音」</td><td>麥克風沒開/靜音/選錯輸入裝置。到 Windows 音效設定確認預設輸入裝置與音量（0.1.9 起會主動偵測無聲並提示）</td></tr>
+        <tr><td>選字潤稿(F8)沒反應</td><td>先確認有<b>選取</b>文字；AI 潤稿要開啟且已設金鑰；F8 可能被佔用（查 debug log 看實際生效鍵）</td></tr>
+        <tr><td>F8/F9/F10 沒反應</td><td>按鍵可能被其他程式佔用。程式會自動退到其他可用鍵，設定頁會顯示實際生效的按鍵</td></tr>
         <tr><td>程式異常 / 閃退</td><td>查 debug log（見下方），把內容回報</td></tr>
       </table>
       <div class="card2">
@@ -199,7 +237,7 @@
       </ul>
     </section>
 
-    <footer>NoType v0.1.0 · 安裝與使用手冊 · 原始碼 github.com/badbadted/notype</footer>
+    <footer>NoType v0.1.10 · 安裝與使用手冊 · 原始碼 github.com/badbadted/notype</footer>
   </main>
 </div>
 </body>
