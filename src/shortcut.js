@@ -6,7 +6,7 @@ const { startRecording, stopRecording, saveAudioBuffer, cleanupTempAudio } = req
 const { showOverlay, hideOverlay } = require('./overlay');
 const { transcribe } = require('./api/stt');
 const { polishText, reviseText, getActiveRole } = require('./api/llm');
-const { typeText, copyToClipboard, pressEnter, copySelection, paste, backupClipboard, restoreClipboard } = require('./typer');
+const { typeText, copyToClipboard, pressEnter, copySelection, paste, selectLeft, backupClipboard, restoreClipboard } = require('./typer');
 const { log } = require('./logger');
 
 const user32 = koffi.load('user32.dll');
@@ -21,6 +21,9 @@ let reviseVks = [0x76]; // 語音改寫熱鍵（F7）的 VK
 let captureMode = 'insert'; // 'insert'=語音輸入；'revise'=語音改寫（依指令改寫選取文字）
 let reviseSelectionPromise = null; // 改寫模式：按下時複製選取文字的 Promise
 let reviseBackup = null; // 改寫模式：使用者原剪貼簿備份
+// 記住「上一段剛用 F9 輸入的文字」，讓 F7 不必手動選字就能改寫剛講的內容。
+// 只在自動貼上模式且未送出時有效；游標若被移動則可能失準（就地取代的本質限制）。
+let lastInsertText = '';
 
 const isKeyDown = (vk) => (GetAsyncKeyState(vk) & 0x8000) !== 0;
 
@@ -284,14 +287,17 @@ async function handleAudioData(audioBuffer) {
 
     if (store.get('copyToClipboard') === true) {
       copyToClipboard(finalText);
+      lastInsertText = ''; // 沒貼進欄位，無法就地改寫
       showOverlay('done', '已複製到剪貼簿');
     } else {
       await typeText(finalText);
       // 說完自動送出：貼上後按 Enter（聊天視窗用）
       if (store.get('autoSubmit') === true) {
         await pressEnter();
+        lastInsertText = ''; // 已送出，游標移走，不再記
         showOverlay('done', '已送出');
       } else {
+        lastInsertText = finalText; // 記住剛輸入的內容，F7 可直接改寫
         showOverlay('done', '已貼上');
       }
     }
@@ -329,15 +335,33 @@ async function handleReviseAudio(audioBuffer) {
     audioPath = saveAudioBuffer(audioBuffer);
     showOverlay('processing', '辨識指令');
     const instruction = await transcribe(audioPath);
-    const target = (await (selPromise || Promise.resolve(''))) || '';
+    const sel = (await (selPromise || Promise.resolve(''))) || '';
+    const backupText = (backup && backup.text) || '';
 
-    if (!target.trim()) { showOverlay('error', '沒有選取要改的文字'); hideOverlay(2500); return; }
     if (!instruction || !instruction.trim()) { showOverlay('error', '沒聽到修改指令'); hideOverlay(2500); return; }
+
+    // 決定要改的目標：① 有手動選取 → 用選取（仍高亮，貼上直接取代）
+    // ② 沒選取但剛用 F9 輸入過 → 用那段，並先 Shift+← 選回它再取代（免手動選字）
+    const hasSelection = sel.trim() && sel !== backupText;
+    let target;
+    let reselectLen = 0;
+    if (hasSelection) {
+      target = sel;
+    } else if (lastInsertText.trim()) {
+      target = lastInsertText;
+      reselectLen = [...lastInsertText].length;
+    } else {
+      showOverlay('error', '沒有可改的文字（先選取或先用 F9 輸入）');
+      hideOverlay(3000);
+      return;
+    }
 
     showOverlay('polishing', '套用修改');
     const revised = await reviseText(target, instruction);
     clipboard.writeText(revised);
-    await paste(); // Ctrl+V 取代選取
+    if (reselectLen > 0) await selectLeft(reselectLen); // 沒選取時，先選回剛輸入的文字
+    await paste(); // Ctrl+V 取代
+    lastInsertText = revised; // 更新，讓 F7 可連續再修
     showOverlay('done', '已依指令修改');
     hideOverlay(1500);
   } catch (err) {

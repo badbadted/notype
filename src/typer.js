@@ -150,6 +150,24 @@ async function pressEnter() {
   keybd_event(VK_RETURN, 0, KEYEVENTF_KEYUP, 0);
 }
 
+// 模擬 Shift+← n 次，把游標左側 n 個字元選起來（用於「選回剛輸入的文字」）
+const VK_SHIFT = 0x10;
+const VK_LEFT = 0x25;
+async function selectLeft(n) {
+  if (!n || n < 1) return;
+  releaseAllModifiers();
+  await sleep(60);
+  keybd_event(VK_SHIFT, 0, 0, 0);
+  await sleep(20);
+  for (let i = 0; i < n; i++) {
+    keybd_event(VK_LEFT, 0, 0, 0);
+    keybd_event(VK_LEFT, 0, KEYEVENTF_KEYUP, 0);
+    await sleep(6);
+  }
+  keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0);
+  await sleep(40);
+}
+
 // 模擬 Ctrl+C 複製當前選取
 async function simulateCtrlC() {
   releaseAllModifiers();
@@ -179,5 +197,5 @@ async function paste() {
 
 module.exports = {
   typeText, copyToClipboard, pressEnter, releaseAllModifiers,
-  copySelection, paste, backupClipboard, restoreClipboard,
+  copySelection, paste, selectLeft, backupClipboard, restoreClipboard,
 };
