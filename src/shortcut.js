@@ -14,6 +14,20 @@ const GetAsyncKeyState = user32.func('short __stdcall GetAsyncKeyState(int vKey)
 
 let isRecording = false;
 let isProcessing = false; // STT/LLM pipeline 進行中旗標，避免並發兩輪互踩暫存檔（M3）
+// isProcessing 看守：任何路徑漏放旗標（例外、卡住）都會在 40s 後自動重置，
+// 避免熱鍵被永久卡死（F7/F9 靜默沒反應）。正常釋放時 clear。
+let _procWatchdog = null;
+function setProcessing(v) {
+  isProcessing = v;
+  if (_procWatchdog) { clearTimeout(_procWatchdog); _procWatchdog = null; }
+  if (v) {
+    _procWatchdog = setTimeout(() => {
+      log.warn('[flow] isProcessing 逾時 40s 未釋放，強制重置（backstop）');
+      isProcessing = false;
+      _procWatchdog = null;
+    }, 40000);
+  }
+}
 let keyPollTimer = null;
 let pollVks = [0x78]; // 目前錄音熱鍵的輪詢鍵（由 startRec/startReviseRec 設定）
 let mainVks = [0x78]; // 語音輸入主熱鍵（F9）的 VK
@@ -175,7 +189,8 @@ function registerReviseHotkey() {
 
 // 語音改寫：按住熱鍵時 → 複製目前選取文字 + 開始錄「修改指令」，放開後由 handleReviseAudio 處理
 function startReviseRec() {
-  if (isRecording || isProcessing) return;
+  if (isRecording) return;
+  if (isProcessing) { showOverlay('error', '處理中，請稍候'); hideOverlay(1500); log.info('[revise] F7 被 isProcessing 擋'); return; }
   const store = getStore();
   if (store.get('llmEnabled') !== true) { showOverlay('error', '潤稿未啟用'); hideOverlay(2500); return; }
   const role = getActiveRole(store);
@@ -208,6 +223,7 @@ function toggleAutoSubmit() {
 
 function startRec() {
   if (isRecording) return;
+  if (isProcessing) { showOverlay('error', '處理中，請稍候'); hideOverlay(1500); log.info('[flow] F9 被 isProcessing 擋'); return; }
   // 沒設金鑰時不錄音，提示去設定
   const store = getStore();
   const provider = store.get('sttProvider') || 'groq';
@@ -264,7 +280,7 @@ async function handleAudioData(audioBuffer) {
     hideOverlay(1500);
     return;
   }
-  isProcessing = true;
+  setProcessing(true);
 
   // 本輪專屬暫存檔路徑，全程用區域變數傳遞，cleanup 只刪自己這輪的檔
   // 注意：saveAudioBuffer 內部 Buffer.from / fs.writeFileSync 可能丟錯（磁碟滿、無權限），
@@ -310,12 +326,13 @@ async function handleAudioData(audioBuffer) {
     // audioPath 可能因 saveAudioBuffer 丟錯而為 undefined；
     // 不可直接傳 undefined 給 cleanupTempAudio（會退回刪 currentAudioPath，誤刪他輪檔）。
     if (audioPath) cleanupTempAudio(audioPath); // 只刪本輪自己的檔，不影響其他輪
-    isProcessing = false; // 任何錯誤路徑都會走到這，旗標必釋放
+    setProcessing(false); // 任何錯誤路徑都會走到這，旗標必釋放
   }
 }
 
 // 語音改寫：辨識「修改指令」→ 依指令改寫先前選取的文字 → 就地貼回取代 → 還原原剪貼簿
 async function handleReviseAudio(audioBuffer) {
+  log.info('[revise] 進入處理，音訊 bytes=', audioBuffer ? (audioBuffer.byteLength || audioBuffer.length || 0) : 0);
   const backup = reviseBackup; reviseBackup = null;
   const selPromise = reviseSelectionPromise; reviseSelectionPromise = null;
   const restore = () => setTimeout(() => { try { restoreClipboard(backup); } catch { /* 忽略 */ } }, 250);
@@ -328,7 +345,7 @@ async function handleReviseAudio(audioBuffer) {
     return;
   }
   if (isProcessing) { showOverlay('error', '處理中，請稍候'); hideOverlay(1500); restore(); return; }
-  isProcessing = true;
+  setProcessing(true);
 
   let audioPath;
   try {
@@ -356,12 +373,14 @@ async function handleReviseAudio(audioBuffer) {
       return;
     }
 
+    log.info('[revise] 指令=', instruction.slice(0, 30), '| 來源=', hasSelection ? '選取' : '剛輸入', '| 目標長=', target.length, '| reselect=', reselectLen);
     showOverlay('polishing', '套用修改');
     const revised = await reviseText(target, instruction);
     clipboard.writeText(revised);
     if (reselectLen > 0) await selectLeft(reselectLen); // 沒選取時，先選回剛輸入的文字
     await paste(); // Ctrl+V 取代
     lastInsertText = revised; // 更新，讓 F7 可連續再修
+    log.info('[revise] 完成，改後長=', revised.length);
     showOverlay('done', '已依指令修改');
     hideOverlay(1500);
   } catch (err) {
@@ -371,7 +390,7 @@ async function handleReviseAudio(audioBuffer) {
   } finally {
     if (audioPath) cleanupTempAudio(audioPath);
     restore();
-    isProcessing = false;
+    setProcessing(false);
   }
 }
 
