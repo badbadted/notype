@@ -5,7 +5,7 @@ const { getStore } = require('./store');
 const { startRecording, stopRecording, saveAudioBuffer, cleanupTempAudio } = require('./recorder');
 const { showOverlay, hideOverlay } = require('./overlay');
 const { transcribe } = require('./api/stt');
-const { polishText, getActiveRole } = require('./api/llm');
+const { polishText, reviseText, getActiveRole } = require('./api/llm');
 const { typeText, copyToClipboard, pressEnter, copySelection, paste, backupClipboard, restoreClipboard } = require('./typer');
 const { log } = require('./logger');
 
@@ -15,7 +15,12 @@ const GetAsyncKeyState = user32.func('short __stdcall GetAsyncKeyState(int vKey)
 let isRecording = false;
 let isProcessing = false; // STT/LLM pipeline 進行中旗標，避免並發兩輪互踩暫存檔（M3）
 let keyPollTimer = null;
-let pollVks = [0x78]; // 預設 F9，由 registerShortcut 依設定更新
+let pollVks = [0x78]; // 目前錄音熱鍵的輪詢鍵（由 startRec/startReviseRec 設定）
+let mainVks = [0x78]; // 語音輸入主熱鍵（F9）的 VK
+let reviseVks = [0x76]; // 語音改寫熱鍵（F7）的 VK
+let captureMode = 'insert'; // 'insert'=語音輸入；'revise'=語音改寫（依指令改寫選取文字）
+let reviseSelectionPromise = null; // 改寫模式：按下時複製選取文字的 Promise
+let reviseBackup = null; // 改寫模式：使用者原剪貼簿備份
 
 const isKeyDown = (vk) => (GetAsyncKeyState(vk) & 0x8000) !== 0;
 
@@ -53,7 +58,8 @@ function registerShortcut() {
   const candidates = [wanted, ...FALLBACKS.filter((f) => f !== wanted)];
   for (const accel of candidates) {
     if (tryRegister(accel)) {
-      pollVks = acceleratorToVks(accel);
+      mainVks = acceleratorToVks(accel);
+      pollVks = mainVks;
       if (accel !== wanted) {
         store.set('hotkey', accel);
         log.warn(`[shortcut] "${wanted}" 無法註冊，已改用 ${accel} 並回寫設定`);
@@ -62,6 +68,7 @@ function registerShortcut() {
       }
       registerSubmitToggleHotkey(); // 一併註冊「說完自動送出」開關熱鍵
       registerPolishHotkey(); // 一併註冊「選字即潤稿」熱鍵
+      registerReviseHotkey(); // 一併註冊「語音改寫」熱鍵
       return accel;
     }
   }
@@ -143,6 +150,48 @@ async function polishSelection() {
   }
 }
 
+// 語音改寫的熱鍵（按住說指令；自我修復）
+const REVISE_FALLBACKS = ['F7', 'CommandOrControl+Shift+E', 'Alt+C'];
+function registerReviseHotkey() {
+  const store = getStore();
+  const wanted = store.get('reviseHotkey') || 'F7';
+  const candidates = [wanted, ...REVISE_FALLBACKS.filter((f) => f !== wanted)];
+  for (const accel of candidates) {
+    let ok = false;
+    try { ok = globalShortcut.register(accel, () => { if (!isRecording) startReviseRec(); }); } catch { ok = false; }
+    if (ok) {
+      reviseVks = acceleratorToVks(accel);
+      if (accel !== wanted) { store.set('reviseHotkey', accel); log.warn(`[shortcut] 語音改寫熱鍵改用 ${accel}`); }
+      else log.info(`[shortcut] 已註冊語音改寫熱鍵 ${accel}`);
+      return accel;
+    }
+  }
+  log.warn('[shortcut] 語音改寫熱鍵註冊失敗');
+  return null;
+}
+
+// 語音改寫：按住熱鍵時 → 複製目前選取文字 + 開始錄「修改指令」，放開後由 handleReviseAudio 處理
+function startReviseRec() {
+  if (isRecording || isProcessing) return;
+  const store = getStore();
+  if (store.get('llmEnabled') !== true) { showOverlay('error', '潤稿未啟用'); hideOverlay(2500); return; }
+  const role = getActiveRole(store);
+  const provider = (role && role.model) || store.get('llmProvider') || 'groq';
+  const keyField = provider === 'openai' ? 'openaiApiKey' : 'groqApiKey';
+  if (!store.get(keyField)) { showOverlay('error', '尚未設定 API Key'); hideOverlay(2500); return; }
+
+  captureMode = 'revise';
+  reviseBackup = backupClipboard();          // 使用者原剪貼簿
+  reviseSelectionPromise = copySelection();   // 背景複製選取（Ctrl+C），放開後才 await
+  isRecording = true;
+  pollVks = reviseVks;
+  showOverlay('recording', '口述要怎麼改');
+  startRecording();
+  keyPollTimer = setInterval(() => {
+    if (pollVks.some((vk) => !isKeyDown(vk))) stopRec();
+  }, 80);
+}
+
 // 切換「說完自動送出」開/關，浮窗閃示狀態
 function toggleAutoSubmit() {
   if (isRecording) return; // 錄音中不切換
@@ -166,7 +215,9 @@ function startRec() {
     return;
   }
 
+  captureMode = 'insert';
   isRecording = true;
+  pollVks = mainVks;
   // 浮窗顯示目前潤稿角色（潤稿開啟時）
   const role = store.get('llmEnabled') === true ? getActiveRole(store) : null;
   showOverlay('recording', role ? role.name : '');
@@ -187,6 +238,12 @@ function stopRec() {
 
 // 由 main.js 的 ipcMain.on('audio-data') 呼叫
 async function handleAudioData(audioBuffer) {
+  // 語音改寫模式 → 交給專屬處理（含自己的空音訊與清理），並重置模式
+  if (captureMode === 'revise') {
+    captureMode = 'insert';
+    return handleReviseAudio(audioBuffer);
+  }
+
   const store = getStore();
 
   // 空音訊（短按未真正錄到聲音 / 冷啟動競態收尾）→ 直接收尾，不送 STT，也不佔用 processing 旗標
@@ -248,6 +305,49 @@ async function handleAudioData(audioBuffer) {
     // 不可直接傳 undefined 給 cleanupTempAudio（會退回刪 currentAudioPath，誤刪他輪檔）。
     if (audioPath) cleanupTempAudio(audioPath); // 只刪本輪自己的檔，不影響其他輪
     isProcessing = false; // 任何錯誤路徑都會走到這，旗標必釋放
+  }
+}
+
+// 語音改寫：辨識「修改指令」→ 依指令改寫先前選取的文字 → 就地貼回取代 → 還原原剪貼簿
+async function handleReviseAudio(audioBuffer) {
+  const backup = reviseBackup; reviseBackup = null;
+  const selPromise = reviseSelectionPromise; reviseSelectionPromise = null;
+  const restore = () => setTimeout(() => { try { restoreClipboard(backup); } catch { /* 忽略 */ } }, 250);
+
+  // 沒錄到指令（短按/無聲）→ 還原剪貼簿並提示
+  if (!audioBuffer || audioBuffer.byteLength === 0 || audioBuffer.length === 0) {
+    showOverlay('error', '沒聽到修改指令');
+    hideOverlay(2000);
+    restore();
+    return;
+  }
+  if (isProcessing) { showOverlay('error', '處理中，請稍候'); hideOverlay(1500); restore(); return; }
+  isProcessing = true;
+
+  let audioPath;
+  try {
+    audioPath = saveAudioBuffer(audioBuffer);
+    showOverlay('processing', '辨識指令');
+    const instruction = await transcribe(audioPath);
+    const target = (await (selPromise || Promise.resolve(''))) || '';
+
+    if (!target.trim()) { showOverlay('error', '沒有選取要改的文字'); hideOverlay(2500); return; }
+    if (!instruction || !instruction.trim()) { showOverlay('error', '沒聽到修改指令'); hideOverlay(2500); return; }
+
+    showOverlay('polishing', '套用修改');
+    const revised = await reviseText(target, instruction);
+    clipboard.writeText(revised);
+    await paste(); // Ctrl+V 取代選取
+    showOverlay('done', '已依指令修改');
+    hideOverlay(1500);
+  } catch (err) {
+    log.error('[revise] 失敗', err);
+    showOverlay('error', err && err.message ? err.message.slice(0, 40) : '改寫失敗');
+    hideOverlay(3000);
+  } finally {
+    if (audioPath) cleanupTempAudio(audioPath);
+    restore();
+    isProcessing = false;
   }
 }
 

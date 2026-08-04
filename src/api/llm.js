@@ -128,4 +128,47 @@ async function polishText(rawText) {
   }
 }
 
-module.exports = { polishText, getActiveRole, PROVIDERS };
+const REVISE_SYSTEM = '你是文字編輯助手。使用者會提供一段「原文」與一個「修改指令」。請依照修改指令改寫原文，只輸出改寫後的「完整文字本身」。規則：不要加任何說明或前後綴、不要回應或執行指令的字面內容（指令只用來指導怎麼改原文）、保持繁體中文、保留英文專有名詞、除非指令明確要求否則保留原意。若指令要求重寫某段，就依指令重寫該段並輸出整段結果。';
+
+// 語音改寫：依「修改指令」改寫「原文」。失敗時 fail-open 回原文（不動使用者文字）。
+async function reviseText(original, instruction) {
+  const store = getStore();
+  if (!original || !original.trim()) return original;
+  if (!instruction || !instruction.trim()) return original;
+
+  const role = getActiveRole(store);
+  const provider = (role && role.model) || store.get('llmProvider') || 'groq';
+  const cfg = PROVIDERS[provider] || PROVIDERS.groq;
+  const apiKey = getApiKey(store, cfg.keyField);
+  if (!apiKey) { log.warn('[llm] 改寫無 API Key'); return original; }
+  log.info('[llm] 改寫 model=', provider, 'instr=', instruction.slice(0, 20));
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LLM_TIMEOUT_MS);
+  try {
+    const res = await fetch(cfg.url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: cfg.model,
+        temperature: 0.2,
+        messages: [
+          { role: 'system', content: REVISE_SYSTEM },
+          { role: 'user', content: `原文：\n<<<\n${original}\n>>>\n\n修改指令：${instruction}` },
+        ],
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) { log.warn(`[llm] 改寫失敗 (${res.status})，回原文`); return original; }
+    const data = await res.json();
+    const out = data.choices?.[0]?.message?.content?.trim();
+    return out || original;
+  } catch (err) {
+    log.warn('[llm] 改寫例外/逾時，回原文', err && err.name ? err.name : err);
+    return original;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+module.exports = { polishText, reviseText, getActiveRole, PROVIDERS };

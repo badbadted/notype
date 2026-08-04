@@ -29,6 +29,8 @@ async function load() {
   if (sh) sh.textContent = prettyHotkey(s.submitToggleHotkey || 'F10');
   const ph = $('polishHk');
   if (ph) ph.textContent = prettyHotkey(s.polishHotkey || 'F8');
+  const rh = $('reviseHk');
+  if (rh) rh.textContent = prettyHotkey(s.reviseHotkey || 'F7');
 }
 
 function prettyHotkey(accel) {
