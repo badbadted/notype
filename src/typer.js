@@ -151,8 +151,11 @@ async function pressEnter() {
 }
 
 // 模擬 Shift+← n 次，把游標左側 n 個字元選起來（用於「選回剛輸入的文字」）
+// 關鍵：方向鍵是「延伸鍵」，keybd_event 必須帶 KEYEVENTF_EXTENDEDKEY，
+// 否則 VK_LEFT 會被當成數字鍵盤的鍵，Shift+← 選不到字（游標只是左移）。
 const VK_SHIFT = 0x10;
 const VK_LEFT = 0x25;
+const KEYEVENTF_EXTENDEDKEY = 0x0001;
 async function selectLeft(n) {
   if (!n || n < 1) return;
   releaseAllModifiers();
@@ -160,9 +163,9 @@ async function selectLeft(n) {
   keybd_event(VK_SHIFT, 0, 0, 0);
   await sleep(20);
   for (let i = 0; i < n; i++) {
-    keybd_event(VK_LEFT, 0, 0, 0);
-    keybd_event(VK_LEFT, 0, KEYEVENTF_KEYUP, 0);
-    await sleep(6);
+    keybd_event(VK_LEFT, 0, KEYEVENTF_EXTENDEDKEY, 0);
+    keybd_event(VK_LEFT, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0);
+    await sleep(8);
   }
   keybd_event(VK_SHIFT, 0, KEYEVENTF_KEYUP, 0);
   await sleep(40);
