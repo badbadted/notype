@@ -47,7 +47,7 @@ function positionBottomCenter(win) {
   }
 }
 
-// state: recording | processing | polishing | done | error
+// state: recording | listening | listenoff | processing | polishing | done | error | toggle
 function showOverlay(state, detail) {
   const win = createOverlayWindow();
   if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }

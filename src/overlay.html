@@ -45,6 +45,12 @@
   .badge.ok { background: var(--green); }
   .badge.err { background: var(--red); }
   .badge.tog { background: var(--ink); font-size: 14px; }
+
+  /* listening：麥克風待命（連續聽寫） */
+  .mic { position: relative; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
+  .mic b { width: 10px; height: 10px; border-radius: 50%; background: var(--green); display: block; }
+  .mic::before { content: ''; position: absolute; inset: 0; border-radius: 50%; border: 2px solid var(--green); animation: ring 1.6s ease-out infinite; }
+  @keyframes ring { from { transform: scale(.45); opacity: 1 } to { transform: scale(1.15); opacity: 0 } }
 </style>
 </head>
 <body>
@@ -55,6 +61,8 @@
         ico: '<div class="bars"><i></i><i></i><i></i><i></i><i></i></div>',
         txt: '錄音中<span class="dot"></span>', sub: '放開 F9 結束',
       },
+      listening: { ico: '<div class="mic"><b></b></div>', txt: '連續聽寫・聆聽中', sub: '再按 F9 結束' },
+      listenoff: { ico: '<div class="badge tog">■</div>', txt: '連續聽寫已結束', sub: '' },
       processing: { ico: '<div class="spin"></div>', txt: '辨識中…', sub: '語音轉文字' },
       polishing: { ico: '<div class="spin amber"></div>', txt: '潤稿中…', sub: 'AI 整理文字' },
       done: { ico: '<div class="badge ok">✓</div>', txt: '完成', sub: '' },
@@ -65,7 +73,13 @@
       const st = STATES[state] || STATES.processing;
       document.getElementById('ico').innerHTML = st.ico;
       const sub = detail || st.sub;
-      document.getElementById('txt').innerHTML = st.txt + (sub ? '<small>' + sub + '</small>' : '');
+      const txt = document.getElementById('txt');
+      txt.innerHTML = st.txt;
+      if (sub) { // detail 可能含錯誤訊息等外部文字 → 用 textContent，不當 HTML 解析
+        const small = document.createElement('small');
+        small.textContent = sub;
+        txt.appendChild(small);
+      }
     }
     if (window.overlayApi) {
       window.overlayApi.onState((state, detail) => render(state, detail));

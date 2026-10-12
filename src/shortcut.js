@@ -1,8 +1,10 @@
-// 全域快捷鍵 + 錄音流程控制（按住 Alt+Space 錄音，放開停止）
+// 全域快捷鍵 + 錄音流程控制（按住 F9 錄音、放開停止；輕按 F9 切換連續聽寫）
 const { globalShortcut, clipboard } = require('electron');
 const koffi = require('koffi');
 const { getStore } = require('./store');
-const { startRecording, stopRecording, saveAudioBuffer, cleanupTempAudio } = require('./recorder');
+const {
+  startRecording, stopRecording, cancelRecording, startListening, stopListening, saveAudioBuffer, cleanupTempAudio,
+} = require('./recorder');
 const { showOverlay, hideOverlay } = require('./overlay');
 const { transcribe } = require('./api/stt');
 const { polishText, reviseText, getActiveRole } = require('./api/llm');
@@ -39,6 +41,23 @@ let reviseBackup = null; // 改寫模式：使用者原剪貼簿備份
 // 只在自動貼上模式且未送出時有效；游標若被移動則可能失準（就地取代的本質限制）。
 let lastInsertText = '';
 
+// ── 連續聽寫狀態 ──────────────────────────────────────
+// 輕按 F9（按住不到 TAP_MS）→ 進入連續聽寫：renderer 以 VAD 自動切句，每句辨識後貼上，再按一次 F9 結束。
+// 按住 F9 超過 TAP_MS → 維持原本的按住說話。
+const TAP_MS = 300;
+let pressStartedAt = 0;
+let isListening = false;    // 連續聽寫中
+let listenSingle = false;   // 單句模式：說完一句就自動結束
+let listenStopping = false; // 已要求停止，等 renderer 回報 'stopped'
+let listenStopWatchdog = null;
+let isSpeaking = false;     // VAD 判定目前有人在說話
+let segPending = 0;         // 排隊中/處理中的句子數
+let segChain = Promise.resolve(); // 句子依序處理，避免並發互踩暫存檔與貼上順序
+let listenCopyBuffer = '';  // 只複製到剪貼簿模式：本次聽寫累積的文字
+let idleTimer = null;
+let waitReleaseTimer = null; // 結束聽寫後等 F9 放開，期間忽略按鍵自動連發
+let overlayRestoreTimer = null;
+
 const isKeyDown = (vk) => (GetAsyncKeyState(vk) & 0x8000) !== 0;
 
 // 將 Electron accelerator（如 "F9" / "Control+Shift+Space"）解析為要輪詢的 VK 碼
@@ -63,8 +82,26 @@ const FALLBACKS = ['F9', 'CommandOrControl+Shift+Space', 'Alt+Z', 'F10'];
 
 function tryRegister(accel) {
   try {
-    return globalShortcut.register(accel, () => { if (!isRecording) startRec(); });
+    return globalShortcut.register(accel, onMainHotkey);
   } catch { return false; }
+}
+
+// 主熱鍵按下：聽寫中 → 結束聽寫；否則開始錄音（放開時再判斷是輕按還是按住）
+function onMainHotkey() {
+  if (waitReleaseTimer) return; // 剛結束聽寫、鍵還沒放開 → 忽略自動連發
+  if (isListening) {
+    stopListen();
+    waitForRelease(mainVks);
+    return;
+  }
+  if (!isRecording) startRec();
+}
+
+function waitForRelease(vks) {
+  if (waitReleaseTimer) clearInterval(waitReleaseTimer);
+  waitReleaseTimer = setInterval(() => {
+    if (vks.some((vk) => !isKeyDown(vk))) { clearInterval(waitReleaseTimer); waitReleaseTimer = null; }
+  }, 80);
 }
 
 function registerShortcut() {
@@ -133,6 +170,7 @@ function registerPolishHotkey() {
 
 // 選字即潤稿：複製目前選取 → 依生效角色潤稿 → 就地貼回取代，最後還原使用者原剪貼簿
 async function polishSelection() {
+  if (isListening) { flashListenBusy(); return; }
   if (isRecording || isProcessing) return;
   const store = getStore();
   if (store.get('llmEnabled') !== true) { showOverlay('error', '潤稿未啟用'); hideOverlay(2500); return; }
@@ -190,6 +228,7 @@ function registerReviseHotkey() {
 // 語音改寫：按住熱鍵時 → 複製目前選取文字 + 開始錄「修改指令」，放開後由 handleReviseAudio 處理
 function startReviseRec() {
   if (isRecording) return;
+  if (isListening) { flashListenBusy(); return; }
   if (isProcessing) { showOverlay('error', '處理中，請稍候'); hideOverlay(1500); log.info('[revise] F7 被 isProcessing 擋'); return; }
   const store = getStore();
   if (store.get('llmEnabled') !== true) { showOverlay('error', '潤稿未啟用'); hideOverlay(2500); return; }
@@ -218,7 +257,7 @@ function toggleAutoSubmit() {
   store.set('autoSubmit', now);
   log.info('[shortcut] 即時送出 →', now);
   showOverlay('toggle', now ? '已開啟' : '已關閉');
-  hideOverlay(1200);
+  restoreOverlay(1200);
 }
 
 function startRec() {
@@ -237,15 +276,31 @@ function startRec() {
   captureMode = 'insert';
   isRecording = true;
   pollVks = mainVks;
+  pressStartedAt = Date.now();
   // 浮窗顯示目前潤稿角色（潤稿開啟時）
   const role = store.get('llmEnabled') === true ? getActiveRole(store) : null;
   showOverlay('recording', role ? role.name : '');
   startRecording();
 
-  // 每 80ms 檢查熱鍵是否放開（任一鍵放開即停止）
+  // 每 80ms 檢查熱鍵是否放開（任一鍵放開即停止）；按不到 TAP_MS 視為輕按 → 改進入連續聽寫
   keyPollTimer = setInterval(() => {
-    if (pollVks.some((vk) => !isKeyDown(vk))) stopRec();
+    if (!pollVks.some((vk) => !isKeyDown(vk))) return;
+    const tapAction = store.get('tapAction') || 'continuous';
+    if (tapAction !== 'off' && Date.now() - pressStartedAt < TAP_MS) {
+      cancelRec();
+      startListen(tapAction === 'single');
+    } else {
+      stopRec();
+    }
   }, 80);
+}
+
+// 取消錄音（丟棄音訊，不送辨識）
+function cancelRec() {
+  if (!isRecording) return;
+  isRecording = false;
+  if (keyPollTimer) { clearInterval(keyPollTimer); keyPollTimer = null; }
+  cancelRecording();
 }
 
 function stopRec() {
@@ -263,8 +318,6 @@ async function handleAudioData(audioBuffer) {
     return handleReviseAudio(audioBuffer);
   }
 
-  const store = getStore();
-
   // 空音訊（短按未真正錄到聲音 / 冷啟動競態收尾）→ 直接收尾，不送 STT，也不佔用 processing 旗標
   if (!audioBuffer || audioBuffer.byteLength === 0 || audioBuffer.length === 0) {
     log.info('[flow] 空音訊，略過（可能為短按）');
@@ -280,6 +333,14 @@ async function handleAudioData(audioBuffer) {
     hideOverlay(1500);
     return;
   }
+  await runInsertPipeline(audioBuffer, { ext: 'webm', continuous: false });
+}
+
+// 語音輸入共用流程：存檔 → STT → 潤稿 → 貼上/複製。按住說話與連續聽寫共用。
+// continuous=true 時：過濾短句幻覺、不自動關浮窗（由聽寫流程接手）、剪貼簿模式累積文字。
+// 回傳 { ok, text, doneMsg }；呼叫端須確保同一時間只有一輪在跑（isProcessing 檢查 / segChain 排隊）。
+async function runInsertPipeline(audioBuffer, { ext = 'webm', continuous = false } = {}) {
+  const store = getStore();
   setProcessing(true);
 
   // 本輪專屬暫存檔路徑，全程用區域變數傳遞，cleanup 只刪自己這輪的檔
@@ -287,46 +348,202 @@ async function handleAudioData(audioBuffer) {
   // 必須放進 try，否則旗標永遠卡 true → 後續所有 F9 觸發被忽略，只能重啟 App（D1）。
   let audioPath;
   try {
-    audioPath = saveAudioBuffer(audioBuffer);
-    showOverlay('processing');
-    const rawText = await transcribe(audioPath);
-    log.info('[flow] STT 結果長度', rawText.length);
+    audioPath = saveAudioBuffer(audioBuffer, ext);
+    showOverlay('processing', continuous ? '連續聽寫・語音轉文字' : '');
+    const rawText = await transcribe(audioPath, { strictFilter: continuous });
+    log.info('[flow] STT 結果長度', rawText.length, continuous ? '(連續)' : '');
 
     if (!rawText) {
-      showOverlay('done', '沒有偵測到語音');
-      hideOverlay(1500);
-      return;
+      if (!continuous) {
+        showOverlay('done', '沒有偵測到語音');
+        hideOverlay(1500);
+      }
+      return { ok: true, text: '' };
     }
 
     showOverlay('polishing');
     const finalText = await polishText(rawText);
+    let doneMsg;
 
     if (store.get('copyToClipboard') === true) {
-      copyToClipboard(finalText);
+      if (continuous) {
+        listenCopyBuffer += finalText;
+        copyToClipboard(listenCopyBuffer); // 累積本次聽寫全部內容，避免後一句蓋掉前一句
+      } else {
+        copyToClipboard(finalText);
+      }
       lastInsertText = ''; // 沒貼進欄位，無法就地改寫
-      showOverlay('done', '已複製到剪貼簿');
+      doneMsg = '已複製到剪貼簿';
     } else {
       await typeText(finalText);
       // 說完自動送出：貼上後按 Enter（聊天視窗用）
       if (store.get('autoSubmit') === true) {
         await pressEnter();
         lastInsertText = ''; // 已送出，游標移走，不再記
-        showOverlay('done', '已送出');
+        doneMsg = '已送出';
       } else {
         lastInsertText = finalText; // 記住剛輸入的內容，F7 可直接改寫
-        showOverlay('done', '已貼上');
+        doneMsg = '已貼上';
       }
     }
-    hideOverlay(1500);
+    if (!continuous) {
+      showOverlay('done', doneMsg);
+      hideOverlay(1500);
+    }
+    return { ok: true, text: finalText, doneMsg };
   } catch (err) {
     log.error('[flow] 處理失敗', err);
     showOverlay('error', err && err.message ? err.message.slice(0, 40) : '處理失敗');
-    hideOverlay(3500);
+    if (!continuous) hideOverlay(3500);
+    return { ok: false, text: '' };
   } finally {
     // audioPath 可能因 saveAudioBuffer 丟錯而為 undefined；
     // 不可直接傳 undefined 給 cleanupTempAudio（會退回刪 currentAudioPath，誤刪他輪檔）。
     if (audioPath) cleanupTempAudio(audioPath); // 只刪本輪自己的檔，不影響其他輪
     setProcessing(false); // 任何錯誤路徑都會走到這，旗標必釋放
+  }
+}
+
+// ── 連續聽寫 ──────────────────────────────────────────
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function hotkeyLabel() {
+  return (getStore().get('hotkey') || 'F9').replace(/CommandOrControl|Control/gi, 'Ctrl');
+}
+
+function showListeningOverlay(detail) {
+  if (overlayRestoreTimer) { clearTimeout(overlayRestoreTimer); overlayRestoreTimer = null; }
+  if (isSpeaking) {
+    showOverlay('recording', `連續聽寫・再按 ${hotkeyLabel()} 結束`);
+  } else {
+    showOverlay('listening', detail || (listenSingle ? '說完一句自動結束' : `再按 ${hotkeyLabel()} 結束`));
+  }
+}
+
+// 暫時性提示結束後：聽寫中 → 回到聆聽浮窗；否則關閉浮窗
+function restoreOverlay(delay) {
+  if (!isListening) { hideOverlay(delay); return; }
+  if (overlayRestoreTimer) clearTimeout(overlayRestoreTimer);
+  overlayRestoreTimer = setTimeout(() => {
+    overlayRestoreTimer = null;
+    if (isListening && !isProcessing) showListeningOverlay();
+  }, delay);
+}
+
+function flashListenBusy() {
+  showOverlay('error', `連續聽寫中，請先按 ${hotkeyLabel()} 結束`);
+  restoreOverlay(1800);
+}
+
+function clearIdleTimer() {
+  if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+}
+
+// 閒置自動結束：避免忘了關、麥克風整天開著
+function resetIdleTimer() {
+  clearIdleTimer();
+  const sec = Number(getStore().get('listenIdleTimeoutSec'));
+  if (!isListening || !(sec > 0)) return;
+  idleTimer = setTimeout(() => {
+    idleTimer = null;
+    if (!isListening) return;
+    if (isSpeaking) { resetIdleTimer(); return; } // 還在講話，不打斷
+    log.info(`[listen] 閒置 ${sec}s，自動結束`);
+    stopListen('閒置過久，已自動結束');
+  }, sec * 1000);
+}
+
+function startListen(single) {
+  if (isListening) return;
+  if (listenStopping) { showOverlay('error', '聽寫結束中，請稍候'); hideOverlay(1500); return; }
+  const store = getStore();
+  isListening = true;
+  listenSingle = single === true;
+  isSpeaking = false;
+  listenCopyBuffer = '';
+  const silenceMs = Number(store.get('vadSilenceMs')) || 1200;
+  log.info('[listen] 開始連續聽寫', listenSingle ? '(單句)' : '', 'silenceMs=', silenceMs);
+  showListeningOverlay('啟動麥克風…');
+  startListening({ silenceMs });
+  resetIdleTimer();
+}
+
+function stopListen(reason) {
+  if (!isListening) return;
+  isListening = false;
+  isSpeaking = false;
+  listenStopping = true;
+  clearIdleTimer();
+  if (overlayRestoreTimer) { clearTimeout(overlayRestoreTimer); overlayRestoreTimer = null; }
+  if (listenStopWatchdog) clearTimeout(listenStopWatchdog);
+  listenStopWatchdog = setTimeout(() => {
+    listenStopWatchdog = null;
+    if (listenStopping) { log.warn('[listen] 5s 未收到 stopped，強制重置'); listenStopping = false; }
+  }, 5000);
+  stopListening(); // renderer 會把講到一半的那句也送出（submitUserSpeechOnPause）
+  log.info('[listen] 結束連續聽寫', reason || '');
+  if (segPending === 0 && !isProcessing) {
+    showOverlay('listenoff', reason || '');
+    hideOverlay(1500);
+  }
+}
+
+// renderer 的 VAD 事件
+function handleListenEvent(name) {
+  switch (name) {
+    case 'ready':
+      log.info('[listen] 麥克風就緒');
+      if (isListening && !isProcessing) showListeningOverlay();
+      break;
+    case 'speech-start':
+      isSpeaking = true;
+      resetIdleTimer();
+      if (isListening && !isProcessing) showListeningOverlay();
+      break;
+    case 'misfire':
+      isSpeaking = false;
+      if (isListening && !isProcessing) showListeningOverlay();
+      break;
+    case 'stopped':
+      listenStopping = false;
+      if (listenStopWatchdog) { clearTimeout(listenStopWatchdog); listenStopWatchdog = null; }
+      if (isListening) { // 非使用者要求的停止（例如麥克風 / VAD 啟動失敗，錯誤已由 recorder-error 顯示）
+        log.warn('[listen] renderer 已停止聆聽，同步結束');
+        isListening = false;
+        isSpeaking = false;
+        clearIdleTimer();
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+// renderer 切好的一句話（16kHz WAV）→ 排隊依序辨識貼上
+function handleSegment(audioBuffer) {
+  isSpeaking = false;
+  if (!audioBuffer || !(audioBuffer.byteLength || audioBuffer.length)) return;
+  segPending++;
+  if (listenSingle && isListening) stopListen(); // 單句模式：收到第一句就結束（segPending 已 +1，不會先關浮窗）
+  resetIdleTimer();
+  segChain = segChain
+    .then(() => processSegment(audioBuffer))
+    .catch((err) => log.error('[listen] 句子處理失敗', err));
+}
+
+async function processSegment(audioBuffer) {
+  let res = { ok: false };
+  try {
+    res = await runInsertPipeline(audioBuffer, { ext: 'wav', continuous: true });
+    if (!res.ok) await sleep(2000); // 讓使用者看得到錯誤訊息
+  } finally {
+    segPending--;
+    if (isListening) {
+      showListeningOverlay(res.ok && res.text ? `${res.doneMsg}・繼續聽…` : undefined);
+    } else if (segPending === 0) {
+      if (res.ok && res.text) showOverlay('done', res.doneMsg);
+      hideOverlay(1200);
+    }
   }
 }
 
@@ -396,7 +613,8 @@ async function handleReviseAudio(audioBuffer) {
 
 function unregisterShortcut() {
   if (keyPollTimer) { clearInterval(keyPollTimer); keyPollTimer = null; }
+  if (isListening) stopListen();
   globalShortcut.unregisterAll();
 }
 
-module.exports = { registerShortcut, unregisterShortcut, handleAudioData };
+module.exports = { registerShortcut, unregisterShortcut, handleAudioData, handleSegment, handleListenEvent };

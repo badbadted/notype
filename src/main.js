@@ -5,7 +5,7 @@ const { createTray, refreshTrayMenu } = require('./tray');
 const { getStore, getSettingsForRenderer, applySettings } = require('./store');
 const { createRecorderWindow, cleanupOrphanTempAudio } = require('./recorder');
 const { createOverlayWindow, showOverlay, hideOverlay } = require('./overlay');
-const { registerShortcut, unregisterShortcut, handleAudioData } = require('./shortcut');
+const { registerShortcut, unregisterShortcut, handleAudioData, handleSegment, handleListenEvent } = require('./shortcut');
 
 // ── 跨機部署防護（必須在 app ready 前設定）──────────────────────
 // 來源：feedback_electron_portable_packaging — 否則在其他電腦會無聲閃退
@@ -101,6 +101,10 @@ function registerIpc() {
 
   // 隱藏錄音視窗回傳的音訊 → 進入 STT→潤稿→輸入流程
   ipcMain.on('audio-data', (_event, audioBuffer) => { handleAudioData(audioBuffer); });
+
+  // 連續聽寫：VAD 切好的一句話 / 聆聽狀態事件
+  ipcMain.on('audio-segment', (_event, audioBuffer) => { handleSegment(audioBuffer); });
+  ipcMain.on('listen-event', (_event, name) => { handleListenEvent(String(name)); });
 
   // 錄音視窗回報錯誤（如麥克風存取失敗）
   ipcMain.on('recorder-error', (_event, msg) => {

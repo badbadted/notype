@@ -20,8 +20,9 @@ function resolveIconPath(name) {
 }
 
 const STATE_TIP = {
-  idle: 'NoType — 待命（按住 F9 說話）',
+  idle: 'NoType — 待命（按住 F9 說話，輕按 F9 連續聽寫）',
   recording: 'NoType — 錄音中…',
+  listening: 'NoType — 連續聽寫中（再按 F9 結束）',
   processing: 'NoType — 辨識中…',
   polishing: 'NoType — 潤稿中…',
   error: 'NoType — 發生錯誤',

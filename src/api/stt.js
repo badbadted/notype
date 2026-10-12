@@ -26,9 +26,30 @@ const ZH_MIX_PROMPT = '繁體中文，中英混雜，保留英文專有名詞與
 // 正規化後比對，判斷輸出是否只是 prompt 的回聲（= 沒收到有效語音）
 const normText = (s) => (s || '').replace(/[\s，。、,.!?！？]/g, '');
 
+// Whisper 對無人聲/雜音片段常見的「幻覺」輸出（多來自影片字幕訓練資料）。
+// 只在整段結果正規化後完全等於下列字串時才丟棄，不會誤刪含這些字的正常句子。
+// STRICT 為連續聽寫額外過濾：這類短句手動按住說話時可能真的是使用者要打的字，故只在自動切句時套用。
+const HALLUCINATIONS = [
+  '字幕由Amara.org社群提供', '字幕由Amara.org社区提供', '請不吝點贊訂閱轉發打賞支持明鏡與點點欄目',
+  '请不吝点赞订阅转发打赏支持明镜与点点栏目', '中文字幕志願者', '字幕志願者', '字幕by索兰娅',
+].map((s) => normText(s));
+const HALLUCINATIONS_STRICT = [
+  '謝謝觀看', '谢谢观看', '感謝觀看', '感谢观看', '謝謝收看', '谢谢收看', '謝謝大家', '谢谢大家',
+  '請訂閱', '请订阅', '訂閱', '订阅', '謝謝', '谢谢', '嗯', '啊', '嗯嗯',
+  'Thankyouforwatching', 'Thankyou', 'Thanksforwatching', 'you', 'Bye',
+].map((s) => normText(s).toLowerCase());
+
+function isHallucination(text, strict) {
+  const n = normText(text);
+  if (!n) return false;
+  if (HALLUCINATIONS.some((h) => n === h || n.includes(h))) return true;
+  return strict && HALLUCINATIONS_STRICT.includes(n.toLowerCase());
+}
+
 const STT_TIMEOUT_MS = 30000; // 30s：網路卡住時 abort 走錯誤路徑，避免 overlay 永久停在「處理中」
 
-async function transcribe(audioFilePath) {
+// opts.strictFilter：連續聽寫時為 true，額外過濾常見短句幻覺
+async function transcribe(audioFilePath, opts = {}) {
   const store = getStore();
   const provider = store.get('sttProvider') || 'groq';
   const cfg = PROVIDERS[provider] || PROVIDERS.groq;
@@ -43,9 +64,10 @@ async function transcribe(audioFilePath) {
     log.info('[stt] 音訊過短或空（', audioData.length, 'bytes），視為未偵測到語音');
     return '';
   }
-  const blob = new Blob([audioData], { type: 'audio/webm' });
+  const isWav = /\.wav$/i.test(audioFilePath);
+  const blob = new Blob([audioData], { type: isWav ? 'audio/wav' : 'audio/webm' });
   const form = new FormData();
-  form.append('file', blob, 'recording.webm');
+  form.append('file', blob, isWav ? 'recording.wav' : 'recording.webm');
   form.append('model', cfg.model);
   form.append('response_format', 'json');
   form.append('temperature', '0');
@@ -94,7 +116,11 @@ async function transcribe(audioFilePath) {
     log.info('[stt] 偵測到 prompt 回聲，視為無語音：', text.slice(0, 30));
     return '';
   }
+  if (isHallucination(text, opts.strictFilter === true)) {
+    log.info('[stt] 偵測到 Whisper 幻覺輸出，視為無語音：', text.slice(0, 30));
+    return '';
+  }
   return text;
 }
 
-module.exports = { transcribe, PROVIDERS };
+module.exports = { transcribe, isHallucination, PROVIDERS };

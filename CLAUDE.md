@@ -10,6 +10,7 @@ Windows AI 語音輸入工具。按住 F9 說話 → 雲端 Whisper STT → LLM 
 - **STT/LLM**：雲端 OpenAI / Groq（OpenAI 相容端點，stt.js / llm.js 各自合一）
 - **熱鍵**：`F9` 單鍵（`Alt+Space` 被 Windows 保留無法註冊）；`shortcut.js` 自我修復，註冊失敗自動退到 `CommandOrControl+Shift+Space` / `Alt+Z` / `F10` 並回寫設定
 - **鍵盤模擬 / 按鍵偵測**：統一用 `koffi`（純 JS FFI，免 Visual Studio 編譯）呼叫 `keybd_event` / `GetAsyncKeyState`
+- **連續聽寫**：輕按 F9（<300ms）切換；renderer 用 `@ricky0123/vad-web` 0.0.30 + `onnxruntime-web` 1.23.2（皆 devDependencies、版本鎖死）做 VAD 切句，每句 16kHz WAV 回送主程序，`segChain` 依序跑 STT→潤稿→貼上。VAD 資源由 `scripts/copy-vad-assets.js` 複製到 `src/vendor/vad/`（gitignore），prestart / prebuild 自動執行
 - **設定存儲**：`electron-store` v8（v11 是 ESM-only 會壞）。注意：v8 建構時會把預設值寫進磁碟，改 code 預設對舊檔無效
 - **UI**：mono-gray 極簡主題（使用者 3 方案比稿選定）
 - **打包防護**：disableHardwareAcceleration + no-sandbox + disable-gpu 等 + uncaughtException + debug log（feedback_electron_portable_packaging）
@@ -18,12 +19,17 @@ Windows AI 語音輸入工具。按住 F9 說話 → 雲端 Whisper STT → LLM 
 1. `Alt+Space` globalShortcut 註冊失敗 → Windows 系統選單保留鍵。改 F9 + 自我修復 fallback
 2. electron-store v8 會持久化預設值 → 改 code 預設無效，需刪 `%APPDATA%\notype\notype-config.json` 或靠 fallback 自癒
 3. `png-to-ico` v3 是 ESM default 匯出 → `mod.default ?? mod`
+4. onnxruntime-web 的 `wasmPaths` 相對路徑會以 ort/vad 自身 script 位置解析 → 找不到 wasm。VAD 資源路徑一律用 `new URL(..., location.href)` 轉絕對 URL
+5. onnxruntime-web 整包 111MB，不可放 dependencies（會整包進 asar）；只複製需要的 6 個檔
+6. recorder-page CSP 需 `'wasm-unsafe-eval'` 才能跑 wasm
 
 ## 進度
 - [x] 切片 0-7 完成：骨架、設定、UI、錄音、STT、LLM、熱鍵、串接
 - [x] 已驗證：開機無閃退、F9 註冊、設定頁渲染、koffi Ctrl+V 貼字（Notepad 實測）
 - [ ] 端到端語音流程：需使用者填 API Key + 真人講話實測
 - [ ] 切片 8：electron-builder 打包（建議 voice flow 確認後再做）
+- [x] 連續聽寫（0.1.15）：假麥克風（Chromium `--use-file-for-fake-audio-capture`）實測 VAD 切句、中途結束送半句、取消錄音、asar 內載入皆通過；主程序狀態機 13 項 mock 測試通過
+- [ ] 連續聽寫：真人麥克風 + 雲端 STT 端到端實測
 
 ## 驗證指令
 ```bash

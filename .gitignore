@@ -5,3 +5,5 @@ dist/
 # 暫存錄音
 tmp/
 *.webm
+# 由 scripts/copy-vad-assets.js 自動產生
+src/vendor/

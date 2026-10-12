@@ -2,10 +2,14 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8" />
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'" />
 <title>recorder</title>
 </head>
 <body>
+<!-- 連續聽寫用：Silero VAD（本機執行，只判斷有沒有人在說話，不上傳）；bundle.min.js 依賴全域 ort -->
+<!-- 檔案由 scripts/copy-vad-assets.js 從 node_modules 複製（npm start / build 前自動執行） -->
+<script src="vendor/vad/ort.wasm.min.js"></script>
+<script src="vendor/vad/vad.bundle.min.js"></script>
 <script>
   // 在隱藏視窗中執行 MediaRecorder（主程序無法直接存取麥克風）
   let mediaRecorder = null;
@@ -15,6 +19,9 @@
   // 待麥克風 ready 後立刻停止，避免短按導致麥克風持續開啟、流程卡在錄音中。
   let starting = false;
   let stopRequested = false;
+  // 取消（輕按 F9 切換連續聽寫時，丟棄按鍵期間的錄音，不送出）
+  let cancelRequested = false;
+  let discardOnStop = false;
   // 收音防呆：錄音期間量測音量，整段近乎無聲＝麥克風沒開/靜音/選錯裝置
   let audioCtx = null;
   let levelTimer = null;
@@ -57,13 +64,15 @@
     if (starting) return;
     starting = true;
     stopRequested = false;
+    cancelRequested = false;
+    discardOnStop = false;
     try {
       chunks = [];
       stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
       // getUserMedia 期間若已收到 stop（短按）→ 不啟動 recorder，釋放麥克風並回送空音訊讓主程序收尾
       if (stopRequested) {
         releaseStream();
-        window.recApi.sendAudio(new Uint8Array(0));
+        if (!cancelRequested) window.recApi.sendAudio(new Uint8Array(0));
         return;
       }
       const mimeType = pickMime();
@@ -82,6 +91,12 @@
   async function onStop() {
     const level = maxLevel;
     stopMeter();
+    if (discardOnStop) { // 取消：丟棄音訊，不回送
+      discardOnStop = false;
+      chunks = [];
+      releaseStream();
+      return;
+    }
     // 收音防呆：整段幾乎無聲 → 麥克風沒開/靜音/選錯裝置，直接明確警告，不送去辨識
     if (level < SILENCE_THRESHOLD) {
       releaseStream();
@@ -114,6 +129,86 @@
     }
   }
 
+  // 取消錄音：停止但不送出音訊（主程序不等待回應）
+  function cancel() {
+    if (starting) {
+      stopRequested = true;
+      cancelRequested = true;
+      return;
+    }
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      discardOnStop = true;
+      mediaRecorder.stop();
+    } else {
+      releaseStream();
+    }
+  }
+
+  // ── 連續聽寫（VAD 自動切句）────────────────────────────
+  // 每偵測到一段話結束，就把該段 16kHz 音訊編成 WAV 回送主程序辨識；
+  // 麥克風持續開著直到主程序送 stop-listening。
+  // 資源路徑須為絕對 URL：ort 會以自身 script 位置解析相對路徑，導致找不到 wasm
+  const VAD_BASE = new URL('vendor/vad/', location.href).href;
+  const ORT_BASE = VAD_BASE;
+  let micVad = null;
+  let listenStarting = false;
+  let listenStopRequested = false;
+
+  async function startListen(opts) {
+    if (micVad || listenStarting) return;
+    listenStarting = true;
+    listenStopRequested = false;
+    const o = opts || {};
+    try {
+      if (!window.vad || !window.ort) throw new Error('VAD 元件載入失敗');
+      micVad = await window.vad.MicVAD.new({
+        model: 'v5',
+        baseAssetPath: VAD_BASE,
+        onnxWASMBasePath: ORT_BASE,
+        ortConfig: (ort) => { ort.env.logLevel = 'error'; ort.env.wasm.numThreads = 1; },
+        positiveSpeechThreshold: 0.5,
+        negativeSpeechThreshold: 0.35,
+        redemptionMs: o.silenceMs || 1200, // 停頓多久算一句結束
+        preSpeechPadMs: 300,
+        minSpeechMs: 500, // 短於 0.5 秒視為雜音，不送辨識
+        submitUserSpeechOnPause: true, // 結束聽寫時，講到一半的那句也送出
+        startOnLoad: false,
+        onSpeechStart: () => window.recApi.listenEvent('speech-start'),
+        onVADMisfire: () => window.recApi.listenEvent('misfire'),
+        onSpeechEnd: (audio) => {
+          try {
+            const wav = window.vad.utils.encodeWAV(audio, 1, 16000, 1, 16); // 16-bit PCM
+            window.recApi.sendSegment(new Uint8Array(wav));
+          } catch (err) {
+            window.recApi.reportError('音訊封裝失敗：' + (err && err.message ? err.message : err));
+          }
+        },
+      });
+      if (listenStopRequested) { await destroyListen(); return; }
+      await micVad.start();
+      if (listenStopRequested) { await destroyListen(); return; }
+      window.recApi.listenEvent('ready');
+    } catch (err) {
+      await destroyListen();
+      window.recApi.reportError('連續聽寫啟動失敗：' + (err && err.message ? err.message : err));
+    } finally {
+      listenStarting = false;
+    }
+  }
+
+  async function destroyListen() {
+    const v = micVad;
+    micVad = null;
+    if (v) { try { await v.destroy(); } catch { /* 忽略 */ } }
+    window.recApi.listenEvent('stopped');
+  }
+
+  function stopListen() {
+    if (listenStarting) { listenStopRequested = true; return; }
+    if (micVad) destroyListen();
+    else window.recApi.listenEvent('stopped');
+  }
+
   function releaseStream() {
     stopMeter();
     if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
@@ -121,6 +216,9 @@
 
   window.recApi.onStart(start);
   window.recApi.onStop(stop);
+  window.recApi.onCancel(cancel);
+  window.recApi.onStartListen(startListen);
+  window.recApi.onStopListen(stopListen);
 </script>
 </body>
 </html>

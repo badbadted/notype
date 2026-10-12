@@ -11,6 +11,7 @@ let currentAudioPath = null;
 // 記住 pendingStop，待 start 真正送出後立刻補送 stop，確保短按一定能收尾。
 let startDispatched = false;
 let pendingStop = false;
+let pendingStopKind = 'stop'; // 'stop'=停止並送出；'cancel'=停止並丟棄
 
 function tempDir() {
   const dir = path.join((app && app.getPath('temp')) || os.tmpdir(), 'notype');
@@ -42,14 +43,15 @@ function startRecording() {
   const win = createRecorderWindow();
   startDispatched = false;
   pendingStop = false;
+  pendingStopKind = 'stop';
   const send = () => {
     if (win.isDestroyed()) return;
     win.webContents.send('start-recording');
     startDispatched = true;
-    // start 送出後，若期間已收到 stop（短按），立刻補送 stop
+    // start 送出後，若期間已收到 stop/cancel（短按），立刻補送
     if (pendingStop) {
       pendingStop = false;
-      win.webContents.send('stop-recording');
+      win.webContents.send(pendingStopKind === 'cancel' ? 'cancel-recording' : 'stop-recording');
     }
   };
   if (win.webContents.isLoading()) win.webContents.once('did-finish-load', send);
@@ -60,6 +62,7 @@ function stopRecording() {
   // start 尚未真正送出（視窗冷啟動中）→ 先記下，待 start 送出後補送，避免 stop 先於 start 而落空
   if (!startDispatched) {
     pendingStop = true;
+    pendingStopKind = 'stop';
     return;
   }
   if (recorderWindow && !recorderWindow.isDestroyed()) {
@@ -67,13 +70,39 @@ function stopRecording() {
   }
 }
 
-// 將 renderer 傳回的音訊 buffer 存成暫存 webm 檔。
+// 取消錄音：停止並丟棄音訊，renderer 不會回送 audio-data
+function cancelRecording() {
+  if (!startDispatched) {
+    pendingStop = true;
+    pendingStopKind = 'cancel';
+    return;
+  }
+  if (recorderWindow && !recorderWindow.isDestroyed()) {
+    recorderWindow.webContents.send('cancel-recording');
+  }
+}
+
+// 連續聽寫：renderer 以 VAD 切句，每句經 'audio-segment' 回送；結束時回送 listen-event 'stopped'
+function startListening(opts) {
+  const win = createRecorderWindow();
+  const send = () => { if (!win.isDestroyed()) win.webContents.send('start-listening', opts || {}); };
+  if (win.webContents.isLoading()) win.webContents.once('did-finish-load', send);
+  else send();
+}
+
+function stopListening() {
+  if (recorderWindow && !recorderWindow.isDestroyed()) {
+    recorderWindow.webContents.send('stop-listening');
+  }
+}
+
+// 將 renderer 傳回的音訊 buffer 存成暫存音訊檔（按住說話為 webm，連續聽寫為 wav）。
 // 檔名帶唯一 id（pid + 時間戳 + 隨機），避免兩輪並發共用同一固定路徑而互相覆蓋／誤刪（M3）。
 // 回傳的路徑由呼叫端以區域變數持有並傳給 cleanupTempAudio，不再依賴模組共用變數。
-function saveAudioBuffer(audioBuffer) {
+function saveAudioBuffer(audioBuffer, ext = 'webm') {
   const buf = Buffer.from(audioBuffer);
   const id = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const audioPath = path.join(tempDir(), `rec-${id}.webm`);
+  const audioPath = path.join(tempDir(), `rec-${id}.${ext}`);
   fs.writeFileSync(audioPath, buf);
   currentAudioPath = audioPath; // 仍記錄最後一次，供未帶參數的呼叫沿用（相容）
   log.info('[recorder] 音訊已存', audioPath, buf.length, 'bytes');
@@ -91,18 +120,19 @@ function cleanupTempAudio(audioPath) {
 }
 
 // 啟動時清除上一輪殘留的暫存錄音檔。正常流程由 shortcut.js 的 finally 刪除，但若在
-// transcribe/polishText 期間崩潰或被 taskkill，含使用者語音的 rec-*.webm 會殘留在 temp 目錄，
+// transcribe/polishText 期間崩潰或被 taskkill，含使用者語音的 rec-*.webm/.wav 會殘留在 temp 目錄，
 // 且檔名帶 pid，下次以不同 pid 啟動不會覆蓋到舊檔。對隱私敏感的語音工具，啟動時整批掃掉。
 // 單例鎖（requestSingleInstanceLock）確保同時只有一個實例，啟動掃描不會誤刪他實例進行中的檔。
 function cleanupOrphanTempAudio() {
   try {
     const dir = tempDir();
     for (const f of fs.readdirSync(dir)) {
-      if (/^rec-.*\.webm$/.test(f)) {
+      if (/^rec-.*\.(webm|wav)$/.test(f)) {
         try { fs.unlinkSync(path.join(dir, f)); } catch { /* 忽略個別刪除失敗 */ }
       }
     }
   } catch { /* 目錄不存在等，忽略 */ }
 }
 
-module.exports = { createRecorderWindow, startRecording, stopRecording, saveAudioBuffer, cleanupTempAudio, cleanupOrphanTempAudio };
+module.exports = {
+  createRecorderWindow, startRecording, stopRecording, cancelRecording, startListening, stopListening, saveAudioBuffer, cleanupTempAudio, cleanupOrphanTempAudio };

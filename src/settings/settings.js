@@ -17,6 +17,10 @@ async function load() {
   setToggle('launchAtStartup', s.launchAtStartup);
   setToggle('autoSubmit', s.autoSubmit);
   setRadio(s.copyToClipboard === true);
+  $('tapAction').value = s.tapAction || 'continuous';
+  setSelect('vadSilenceMs', s.vadSilenceMs, 1200);
+  setSelect('listenIdleTimeoutSec', s.listenIdleTimeoutSec, 60);
+  syncTapDim();
   renderRoles();
   syncKeyField();
   syncLlmDim();
@@ -45,6 +49,20 @@ function setSeg(segId, value) {
 function getSeg(segId) {
   const on = $(segId).querySelector('button.on');
   return on ? on.dataset.v : null;
+}
+// 設定檔的值不在選項中時（例如手改設定檔）→ 補一個選項，避免 select 顯示空白
+function setSelect(id, value, fallback) {
+  const el = $(id);
+  const v = String(value === undefined || value === null ? fallback : value);
+  if (![...el.options].some((o) => o.value === v)) el.add(new Option(v, v));
+  el.value = v;
+}
+function syncTapDim() {
+  const off = $('tapAction').value === 'off';
+  for (const id of ['vadSilenceRow', 'idleRow']) {
+    $(id).style.opacity = off ? '.4' : '1';
+    $(id).style.pointerEvents = off ? 'none' : 'auto';
+  }
 }
 function setToggle(id, on) { $(id).classList.toggle('on', on === true); }
 function setRadio(copy) {
@@ -160,6 +178,7 @@ $('sttSeg').addEventListener('click', (e) => {
 $('llmEnabled').addEventListener('click', function () { this.classList.toggle('on'); syncLlmDim(); });
 $('launchAtStartup').addEventListener('click', function () { this.classList.toggle('on'); });
 $('autoSubmit').addEventListener('click', function () { this.classList.toggle('on'); });
+$('tapAction').addEventListener('change', syncTapDim);
 $('optType').addEventListener('click', () => setRadio(false));
 $('optCopy').addEventListener('click', () => setRadio(true));
 $('apiKey').addEventListener('input', () => {
@@ -200,6 +219,9 @@ $('btnSave').addEventListener('click', async () => {
     copyToClipboard: $('optCopy').classList.contains('sel'),
     autoSubmit: $('autoSubmit').classList.contains('on'),
     launchAtStartup: $('launchAtStartup').classList.contains('on'),
+    tapAction: $('tapAction').value,
+    vadSilenceMs: Number($('vadSilenceMs').value),
+    listenIdleTimeoutSec: Number($('listenIdleTimeoutSec').value),
   };
   await window.notype.saveSettings(payload);
   s = { ...s, ...payload };

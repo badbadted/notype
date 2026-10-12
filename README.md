@@ -1,10 +1,11 @@
 # NoType — AI 語音輸入工具（Windows）
 
-用說的取代打字。按住 **F9** 說話，放開即自動辨識 → AI 潤稿 → 文字貼進當前游標位置。常駐系統匣，自帶 API Key（BYOK）。
+用說的取代打字。按住 **F9** 說話，放開即自動辨識 → AI 潤稿 → 文字貼進當前游標位置；輕按 **F9** 則進入免持的連續聽寫。常駐系統匣，自帶 API Key（BYOK）。
 
 ## 功能
 
 - **全域熱鍵**：按住 F9 錄音、放開停止（單鍵 push-to-talk）
+- **連續聽寫**：輕按 F9 開始，本機 Silero VAD 偵測停頓自動切句，每句辨識後貼上；再輕按 F9 結束（閒置 1 分鐘自動結束）
 - **雲端 STT**：OpenAI Whisper / Groq Whisper 二選一，中英混雜優化
 - **AI 潤稿**：移除贅詞、自動標點、修正文法；可選風格或自訂提示詞
 - **輸入到任何 App**：剪貼簿 + 模擬 Ctrl+V，相容中文輸入法
@@ -16,7 +17,7 @@
 ```bash
 npm install
 npm run icon      # 產生系統匣圖示（首次）
-npm start         # 啟動（開發）
+npm start         # 啟動（開發；prestart 會先把 VAD 資源複製到 src/vendor/vad）
 ```
 
 啟動後在系統匣圖示按右鍵或左鍵開「設定」，填入 API Key 並測試，即可開始按 F9 說話。
@@ -41,7 +42,8 @@ npm run build:portable   # 只產 portable exe
 |------|------|
 | `src/main.js` | Electron 主程序、IPC、跨機防護 |
 | `src/shortcut.js` | 全域熱鍵 + 按住偵測（koffi `GetAsyncKeyState`）+ 流程控制 |
-| `src/recorder*.js/html` | 隱藏視窗 `MediaRecorder` 錄音 |
+| `src/recorder*.js/html` | 隱藏視窗 `MediaRecorder` 錄音；連續聽寫用 `@ricky0123/vad-web`（Silero VAD，本機 wasm）切句 |
+| `scripts/copy-vad-assets.js` | 把 VAD / onnxruntime 需要的 6 個檔案複製到 `src/vendor/vad/`（打包只帶這些，約 14MB） |
 | `src/api/stt.js` | OpenAI / Groq Whisper 轉錄（合一） |
 | `src/api/llm.js` | LLM 潤稿（可自訂提示詞） |
 | `src/typer.js` | koffi `keybd_event` 模擬 Ctrl+V 輸入 |

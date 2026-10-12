@@ -86,6 +86,33 @@
         <span>按住 <span class="kbd" id="hotkeyKbd">F9</span> 說話</span>
       </div>
       <div class="row">
+        <span class="lbl">輕按快捷鍵<small>輕按一下（不按住）開始免持聽寫，自動偵測停頓切句</small></span>
+        <select id="tapAction">
+          <option value="continuous">連續聽寫（再按一次結束）</option>
+          <option value="single">說完一句自動結束</option>
+          <option value="off">停用</option>
+        </select>
+      </div>
+      <div class="row" id="vadSilenceRow">
+        <span class="lbl">停頓判定<small>停頓超過這個時間，就當作一句話說完</small></span>
+        <select id="vadSilenceMs">
+          <option value="800">0.8 秒（快）</option>
+          <option value="1200">1.2 秒</option>
+          <option value="1800">1.8 秒</option>
+          <option value="2500">2.5 秒（慢，適合邊想邊講）</option>
+        </select>
+      </div>
+      <div class="row" id="idleRow">
+        <span class="lbl">閒置自動結束<small>連續聽寫多久沒人說話就自動關麥克風</small></span>
+        <select id="listenIdleTimeoutSec">
+          <option value="30">30 秒</option>
+          <option value="60">1 分鐘</option>
+          <option value="180">3 分鐘</option>
+          <option value="600">10 分鐘</option>
+          <option value="0">不自動結束</option>
+        </select>
+      </div>
+      <div class="row">
         <span class="lbl">選字潤稿<small>在任何 App 選取文字後按此鍵，AI 依目前角色潤稿並就地取代</small></span>
         <span>按 <span class="kbd" id="polishHk">F8</span></span>
       </div>
