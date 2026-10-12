@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { log } = require('./logger');
 const { getStore } = require('./store');
+const { isMicButtonEnabled, setMicButtonEnabled } = require('./micbutton');
 
 let tray = null;
 let _opts = {}; // 保存 onSettings / onQuit，供 menu 重建使用
@@ -50,6 +51,19 @@ function buildMenu() {
     roleSubmenu.length
       ? { label: '潤稿角色', submenu: roleSubmenu }
       : { label: '潤稿角色（無）', enabled: false },
+    { type: 'separator' },
+    {
+      label: '浮動麥克風鈕',
+      type: 'checkbox',
+      checked: isMicButtonEnabled(),
+      click: (item) => { setMicButtonEnabled(item.checked); refreshTrayMenu(); },
+    },
+    {
+      label: '說完自動送出',
+      type: 'checkbox',
+      checked: store.get('autoSubmit') === true,
+      click: (item) => { store.set('autoSubmit', item.checked); refreshTrayMenu(); },
+    },
     { type: 'separator' },
     { label: '結束 NoType', click: () => _opts.onQuit && _opts.onQuit() },
   ]);

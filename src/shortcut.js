@@ -6,6 +6,7 @@ const {
   startRecording, stopRecording, cancelRecording, startListening, stopListening, saveAudioBuffer, cleanupTempAudio,
 } = require('./recorder');
 const { showOverlay, hideOverlay } = require('./overlay');
+const { setMicState } = require('./micbutton');
 const { transcribe } = require('./api/stt');
 const { polishText, reviseText, getActiveRole } = require('./api/llm');
 const { typeText, copyToClipboard, pressEnter, copySelection, paste, selectLeft, backupClipboard, restoreClipboard } = require('./typer');
@@ -95,6 +96,24 @@ function onMainHotkey() {
     return;
   }
   if (!isRecording) startRec();
+}
+
+// 浮動麥克風鈕：滑鼠點一下開始連續聽寫，再點一下結束。
+// 不經熱鍵、沒有「按住」可言，所以直接進連續聽寫（輕按設成單句時則說完一句自動結束）。
+function toggleListenFromButton() {
+  if (isListening) { stopListen(); return; }
+  if (isRecording || waitReleaseTimer) return;
+  if (isProcessing) { showOverlay('error', '處理中，請稍候'); hideOverlay(1500); log.info('[flow] 麥克風鈕被 isProcessing 擋'); return; }
+  const store = getStore();
+  const provider = store.get('sttProvider') || 'groq';
+  const keyField = provider === 'openai' ? 'openaiApiKey' : 'groqApiKey';
+  if (!store.get(keyField)) {
+    showOverlay('error', '尚未設定 API Key');
+    hideOverlay(2500);
+    return;
+  }
+  log.info('[mic] 麥克風鈕 → 開始聽寫');
+  startListen(store.get('tapAction') === 'single');
 }
 
 function waitForRelease(vks) {
@@ -466,6 +485,7 @@ function startListen(single) {
   showListeningOverlay('啟動麥克風…');
   startListening({ silenceMs });
   resetIdleTimer();
+  setMicState('listening');
 }
 
 function stopListen(reason) {
@@ -473,6 +493,7 @@ function stopListen(reason) {
   isListening = false;
   isSpeaking = false;
   listenStopping = true;
+  setMicState('idle');
   clearIdleTimer();
   if (overlayRestoreTimer) { clearTimeout(overlayRestoreTimer); overlayRestoreTimer = null; }
   if (listenStopWatchdog) clearTimeout(listenStopWatchdog);
@@ -511,6 +532,7 @@ function handleListenEvent(name) {
         log.warn('[listen] renderer 已停止聆聽，同步結束');
         isListening = false;
         isSpeaking = false;
+        setMicState('idle');
         clearIdleTimer();
       }
       break;
@@ -617,4 +639,7 @@ function unregisterShortcut() {
   globalShortcut.unregisterAll();
 }
 
-module.exports = { registerShortcut, unregisterShortcut, handleAudioData, handleSegment, handleListenEvent };
+module.exports = {
+  registerShortcut, unregisterShortcut, handleAudioData, handleSegment, handleListenEvent,
+  toggleListenFromButton,
+};

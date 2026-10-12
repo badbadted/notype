@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
+<title>NoType 麥克風</title>
+<style>
+  :root { --card: #ffffff; --border: #d4d4d8; --t2: #52525b; --red: #dc2626; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: transparent; overflow: hidden; -webkit-user-select: none; }
+  body { display: flex; align-items: center; justify-content: center; }
+  #mic {
+    position: relative; width: 44px; height: 44px; padding: 0; border-radius: 50%;
+    background: var(--card); border: 1px solid var(--border); color: var(--t2);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.22); cursor: pointer; outline: none;
+    display: flex; align-items: center; justify-content: center;
+    transition: background .15s, color .15s, border-color .15s, transform .1s;
+  }
+  #mic:hover { border-color: #a1a1aa; }
+  #mic:active { transform: scale(.94); }
+  #mic svg { width: 22px; height: 22px; pointer-events: none; }
+  #mic.listening { background: var(--red); border-color: var(--red); color: #ffffff; }
+  #mic.listening::after {
+    content: ""; position: absolute; inset: -1px; border-radius: 50%;
+    border: 2px solid var(--red); animation: ring 1.4s ease-out infinite; pointer-events: none;
+  }
+  @keyframes ring { from { transform: scale(1); opacity: .7 } to { transform: scale(1.22); opacity: 0 } }
+</style>
+</head>
+<body>
+<button id="mic" type="button" title="點一下開始語音輸入，再點一下結束（可拖曳移動）" aria-label="語音輸入">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="9" y="2.5" width="6" height="11.5" rx="3" />
+    <path d="M5.5 11a6.5 6.5 0 0 0 13 0" />
+    <path d="M12 17.5v4" />
+  </svg>
+</button>
+<script>
+  const mic = document.getElementById('mic');
+  const DRAG_PX = 5; // 移動超過這個距離才算拖曳，否則算點擊
+  let down = null;
+  let isDragging = false;
+
+  window.micApi.onState((state) => {
+    mic.classList.toggle('listening', state === 'listening');
+    mic.title = state === 'listening'
+      ? '聽寫中，點一下結束（可拖曳移動）'
+      : '點一下開始語音輸入，再點一下結束（可拖曳移動）';
+  });
+
+  mic.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    mic.setPointerCapture(e.pointerId); // 拖得快、游標跑出小視窗時仍收得到事件
+    down = { x: e.screenX, y: e.screenY };
+    isDragging = false;
+  });
+
+  mic.addEventListener('pointermove', (e) => {
+    if (!down) return;
+    if (!isDragging && Math.hypot(e.screenX - down.x, e.screenY - down.y) > DRAG_PX) {
+      isDragging = true;
+      window.micApi.dragStart();
+    }
+    if (isDragging) window.micApi.dragMove();
+  });
+
+  const finish = (isClick) => {
+    if (!down) return;
+    const wasDragging = isDragging;
+    down = null;
+    isDragging = false;
+    if (wasDragging) window.micApi.dragEnd();
+    else if (isClick) window.micApi.click();
+  };
+  mic.addEventListener('pointerup', (e) => { if (e.button === 0) finish(true); });
+  mic.addEventListener('pointercancel', () => finish(false));
+</script>
+</body>
+</html>

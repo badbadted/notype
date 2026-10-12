@@ -22,6 +22,8 @@ Windows AI 語音輸入工具。按住 F9 說話 → 雲端 Whisper STT → LLM 
 4. onnxruntime-web 的 `wasmPaths` 相對路徑會以 ort/vad 自身 script 位置解析 → 找不到 wasm。VAD 資源路徑一律用 `new URL(..., location.href)` 轉絕對 URL
 5. onnxruntime-web 整包 111MB，不可放 dependencies（會整包進 asar）；只複製需要的 6 個檔
 6. recorder-page CSP 需 `'wasm-unsafe-eval'` 才能跑 wasm
+7. 潤稿失敗是 fail-open（回原文），所以模型下架這類錯誤使用者看不出來，只會在 log 留 `[llm] 潤稿失敗 (404)`。懷疑潤稿沒作用時先查 log；Groq 下架清單在 console.groq.com/docs/deprecations
+8. 「從別的視窗按按鈕來啟動聽寫」行不通：按鈕所在視窗會拿走焦點，Ctrl+V 就貼不到原本的輸入框。要用滑鼠啟動只能靠 `focusable:false` 的視窗（狀態浮窗、浮動麥克風鈕都是）
 
 ## 進度
 - [x] 切片 0-7 完成：骨架、設定、UI、錄音、STT、LLM、熱鍵、串接
@@ -30,6 +32,9 @@ Windows AI 語音輸入工具。按住 F9 說話 → 雲端 Whisper STT → LLM 
 - [ ] 切片 8：electron-builder 打包（建議 voice flow 確認後再做）
 - [x] 連續聽寫（0.1.15）：假麥克風（Chromium `--use-file-for-fake-audio-capture`）實測 VAD 切句、中途結束送半句、取消錄音、asar 內載入皆通過；主程序狀態機 13 項 mock 測試通過
 - [ ] 連續聽寫：真人麥克風 + 雲端 STT 端到端實測
+
+- [x] 浮動麥克風鈕（0.1.16）：開發版以模擬滑鼠點擊實測——點一下開始聽寫、再點一下結束，點擊前後前景視窗不變（不搶焦點）。拖曳與真人講話貼字待使用者實測
+- [x] Groq 潤稿模型換成 `openai/gpt-oss-120b`（0.1.16）：`llama-3.3-70b-versatile` 於 2026-08-16 下架後每次潤稿都回 404、退回原文。新模型的實際潤稿結果尚未以真人語音驗證
 
 ## 驗證指令
 ```bash

@@ -100,6 +100,8 @@ const defaults = {
   polishHotkey: 'F8', // 選字即潤稿：選取文字後按此鍵，AI 依目前角色潤稿並就地取代
   reviseHotkey: 'F7', // 語音改寫：選取文字 → 按住此鍵說出修改指令 → AI 依指令改寫並取代
   launchAtStartup: false,
+  micButton: true, // 浮動麥克風鈕：滑鼠點一下開始 / 結束連續聽寫
+  micButtonPos: null, // 浮動麥克風鈕的位置 { x, y }；null=右下角預設位置
 };
 
 // 首次（或舊版升級）建立角色清單，並把舊的 llmStyle / llmCustomPrompt 遷移為角色

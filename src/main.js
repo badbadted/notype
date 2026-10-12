@@ -5,7 +5,8 @@ const { createTray, refreshTrayMenu } = require('./tray');
 const { getStore, getSettingsForRenderer, applySettings } = require('./store');
 const { createRecorderWindow, cleanupOrphanTempAudio } = require('./recorder');
 const { createOverlayWindow, showOverlay, hideOverlay } = require('./overlay');
-const { registerShortcut, unregisterShortcut, handleAudioData, handleSegment, handleListenEvent } = require('./shortcut');
+const { registerShortcut, unregisterShortcut, handleAudioData, handleSegment, handleListenEvent, toggleListenFromButton } = require('./shortcut');
+const { createMicButton, dragStart, dragMove, dragEnd } = require('./micbutton');
 
 // ── 跨機部署防護（必須在 app ready 前設定）──────────────────────
 // 來源：feedback_electron_portable_packaging — 否則在其他電腦會無聲閃退
@@ -106,6 +107,14 @@ function registerIpc() {
   ipcMain.on('audio-segment', (_event, audioBuffer) => { handleSegment(audioBuffer); });
   ipcMain.on('listen-event', (_event, name) => { handleListenEvent(String(name)); });
 
+  // 浮動麥克風鈕：點擊切換連續聽寫；拖曳移動位置
+  ipcMain.on('mic-click', () => { toggleListenFromButton(); });
+  ipcMain.on('mic-drag', (_event, phase) => {
+    if (phase === 'start') dragStart();
+    else if (phase === 'move') dragMove();
+    else if (phase === 'end') dragEnd();
+  });
+
   // 錄音視窗回報錯誤（如麥克風存取失敗）
   ipcMain.on('recorder-error', (_event, msg) => {
     log.error('[recorder]', msg);
@@ -141,6 +150,7 @@ if (!gotTheLock) {
     // 預建隱藏錄音視窗 + 浮窗，並註冊全域快捷鍵
     createRecorderWindow();
     createOverlayWindow();
+    createMicButton();
     registerShortcut();
     global.__notypeReregisterShortcut = registerShortcut; // 設定變更時供 IPC 重註冊
 

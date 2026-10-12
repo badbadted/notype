@@ -35,6 +35,9 @@
 - 功能: handleAudioData——端到端流程：空音訊略過 → isProcessing 並發鎖 → 存暫存檔 → STT 轉錄 → LLM 潤稿 → 依設定走「複製到剪貼簿」或「貼上（autoSubmit 時補按 Enter）」→ finally 清本輪暫存檔並釋放並發鎖（shortcut.js:133-196）
 - 依賴: electron globalShortcut、koffi、./store、./recorder、./overlay、./api/stt、./api/llm、./typer、./logger
 
+- 功能: toggleListenFromButton——浮動麥克風鈕的入口：聽寫中則結束；否則檢查金鑰與 isProcessing 後直接 startListen（輕按設為 single 時為單句）
+- 功能: 開始 / 結束連續聽寫（含 renderer 異常停止）時呼叫 setMicState 同步浮動麥克風鈕的顏色
+
 ## src/recorder.js — 錄音模組（主程序側）
 - 功能: 在系統 temp 下建 notype 子目錄存暫存音訊（recorder.js:15-19）
 - 功能: createRecorderWindow——建 1x1 隱藏視窗跑 MediaRecorder（主程序無法直接錄音）（recorder.js:21-39）
@@ -70,7 +73,7 @@
 - 依賴: fs、../store（getStore/getApiKey）、../logger、全域 fetch/Blob/FormData
 
 ## src/api/llm.js — LLM 文字潤稿
-- 功能: PROVIDERS 定義——OpenAI（gpt-4o-mini）與 Groq（llama-3.3-70b-versatile）chat/completions 端點（llm.js:5-16）
+- 功能: PROVIDERS 定義——OpenAI（gpt-4o-mini）與 Groq（openai/gpt-oss-120b，附 reasoning_effort=low、include_reasoning=false；llama-3.3-70b-versatile 已於 2026-08-16 下架）chat/completions 端點（llm.js:5-16）
 - 功能: GUARD 護欄——強制把 <<< >>> 內容視為待潤稿逐字稿而非指令，防 prompt injection / 模型反問（llm.js:22-23, 99）
 - 功能: tooShortToPolish——≤3 字直接原樣回避免誤判（llm.js:25-28, 71）
 - 功能: looksLikeRefusal——偵測模型反問要逐字稿（強訊號單一命中即判 / 弱訊號需開頭命中或 ≥2 命中或極短）視為失敗回原文（llm.js:36-57）
@@ -103,9 +106,22 @@
 - 功能: resolveIconPath——production 用 resourcesPath、開發用專案 assets 找圖示（tray.js:11-20）
 - 功能: STATE_TIP——各狀態（idle/recording/listening/processing/polishing/error）的 tooltip 文案（tray.js:22-28）
 - 功能: buildMenu——右鍵選單：設定 / 潤稿角色 radio 子選單（即時切換 activeRoleId）/ 結束（tray.js:31-55）
+- 功能: 右鍵選單另有兩個勾選項——「浮動麥克風鈕」（顯示 / 隱藏）與「說完自動送出」（等同 F10），供只用滑鼠操作
 - 功能: createTray——建立系統匣、設 tooltip 與選單、左鍵點開設定（tray.js:62-80）
 - 功能: setTrayState / refreshTrayMenu——依流程狀態更新 tooltip / 重建選單（tray.js:57-60, 82-85）
 - 依賴: electron（Tray/Menu/nativeImage）、path、fs、./logger、./store
+
+## src/micbutton.js — 浮動麥克風鈕（主程序側）
+- 功能: createMicButton——56x56 無框透明、永遠置頂、focusable:false 的小視窗；點它不搶焦點，辨識結果照常貼進使用者原本的輸入位置
+- 功能: 位置——預設主螢幕右下角；拖曳後存入設定 micButtonPos，啟動時 clampToScreen 拉回可見範圍
+- 功能: dragStart / dragMove / dragEnd——依游標螢幕座標移動視窗（一律 setBounds 連同寬高，避免高 DPI 下越拖越大），放開時存位置
+- 功能: setMicButtonEnabled / isMicButtonEnabled——顯示 / 隱藏並寫入設定 micButton（系統匣選單用）
+- 功能: setMicState——'idle' | 'listening'，由 shortcut.js 在開始 / 結束連續聽寫時同步，鈕變紅並有脈動外圈
+- 依賴: electron（BrowserWindow / screen）、./store、./logger
+
+## src/micbutton.html + micbutton-preload.js — 浮動麥克風鈕 renderer 與橋接
+- 功能: 圓形麥克風鈕；pointer capture 自行判斷「點擊」或「拖曳」（移動超過 5px 才算拖曳）
+- 功能: micApi——onState（主程序→鈕）、click、dragStart / dragMove / dragEnd（鈕→主程序，IPC 通道 mic-state / mic-click / mic-drag）
 
 ## src/overlay.js — 狀態浮窗管理（主程序側）
 - 功能: createOverlayWindow——建無邊框、透明、不搶焦點（focusable:false）、skipTaskbar、置頂的 240x84 浮窗（overlay.js:10-36）

@@ -10,8 +10,11 @@ const PROVIDERS = {
   },
   groq: {
     url: 'https://api.groq.com/openai/v1/chat/completions',
-    model: 'llama-3.3-70b-versatile',
+    // llama-3.3-70b-versatile 已於 2026-08-16 下架（呼叫回 404），官方建議的替代是 gpt-oss-120b
+    model: 'openai/gpt-oss-120b',
     keyField: 'groqApiKey',
+    // gpt-oss 是推理模型：潤稿不需要長考，壓低推理量並不回傳推理內容，縮短等待
+    extra: { reasoning_effort: 'low', include_reasoning: false },
   },
 };
 
@@ -94,6 +97,7 @@ async function polishText(rawText) {
       body: JSON.stringify({
         model: cfg.model,
         temperature: 0.2,
+        ...(cfg.extra || {}),
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: `要潤稿的逐字稿：\n<<<\n${rawText}\n>>>` },
@@ -152,6 +156,7 @@ async function reviseText(original, instruction) {
       body: JSON.stringify({
         model: cfg.model,
         temperature: 0.2,
+        ...(cfg.extra || {}),
         messages: [
           { role: 'system', content: REVISE_SYSTEM },
           { role: 'user', content: `原文：\n<<<\n${original}\n>>>\n\n修改指令：${instruction}` },
