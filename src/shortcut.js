@@ -103,17 +103,50 @@ function onMainHotkey() {
 function toggleListenFromButton() {
   if (isListening) { stopListen(); return; }
   if (isRecording || waitReleaseTimer) return;
-  if (isProcessing) { showOverlay('error', '處理中，請稍候'); hideOverlay(1500); log.info('[flow] 麥克風鈕被 isProcessing 擋'); return; }
+  if (!readyForButton()) return;
+  log.info('[mic] 麥克風鈕 → 開始聽寫');
+  startListen(getStore().get('tapAction') === 'single');
+}
+
+// 麥克風鈕要開始收音前的共同檢查：處理中或沒設金鑰就用浮窗提示並回 false
+function readyForButton() {
+  if (isProcessing) { showOverlay('error', '處理中，請稍候'); hideOverlay(1500); log.info('[flow] 麥克風鈕被 isProcessing 擋'); return false; }
   const store = getStore();
   const provider = store.get('sttProvider') || 'groq';
   const keyField = provider === 'openai' ? 'openaiApiKey' : 'groqApiKey';
   if (!store.get(keyField)) {
     showOverlay('error', '尚未設定 API Key');
     hideOverlay(2500);
-    return;
+    return false;
   }
-  log.info('[mic] 麥克風鈕 → 開始聽寫');
-  startListen(store.get('tapAction') === 'single');
+  return true;
+}
+
+// 浮動麥克風鈕「按住說話」：按住超過輕按門檻才會呼叫，放開由 stopRecFromButton 收尾。
+// 和按住 F9 走同一條錄音→辨識→貼上流程，差別只在「放開」由滑鼠事件通知，不輪詢鍵盤。
+let buttonHolding = false;
+function startRecFromButton() {
+  if (isListening || isRecording || waitReleaseTimer) return;
+  if (!readyForButton()) return;
+  const store = getStore();
+  captureMode = 'insert';
+  isRecording = true;
+  buttonHolding = true;
+  const role = store.get('llmEnabled') === true ? getActiveRole(store) : null;
+  showOverlay('recording', role ? role.name : '');
+  startRecording();
+  setMicState('recording');
+  log.info('[mic] 麥克風鈕按住 → 開始錄音');
+}
+
+// cancel=true：丟棄這段錄音（例如按住途中被系統中斷）
+function stopRecFromButton(cancel) {
+  if (!buttonHolding) return; // 不是由麥克風鈕開始的錄音（例如正按著 F9）就不碰
+  buttonHolding = false;
+  setMicState('idle');
+  if (!isRecording) return;
+  if (cancel === true) { cancelRec(); hideOverlay(0); return; }
+  stopRec();
 }
 
 function waitForRelease(vks) {
@@ -641,5 +674,5 @@ function unregisterShortcut() {
 
 module.exports = {
   registerShortcut, unregisterShortcut, handleAudioData, handleSegment, handleListenEvent,
-  toggleListenFromButton,
+  toggleListenFromButton, startRecFromButton, stopRecFromButton,
 };

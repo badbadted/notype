@@ -19,8 +19,8 @@
   #mic:hover { border-color: #a1a1aa; }
   #mic:active { transform: scale(.94); }
   #mic svg { width: 22px; height: 22px; pointer-events: none; }
-  #mic.listening { background: var(--red); border-color: var(--red); color: #ffffff; }
-  #mic.listening::after {
+  #mic.active { background: var(--red); border-color: var(--red); color: #ffffff; }
+  #mic.active::after {
     content: ""; position: absolute; inset: -1px; border-radius: 50%;
     border: 2px solid var(--red); animation: ring 1.4s ease-out infinite; pointer-events: none;
   }
@@ -28,7 +28,7 @@
 </style>
 </head>
 <body>
-<button id="mic" type="button" title="點一下開始語音輸入，再點一下結束（可拖曳移動）" aria-label="語音輸入">
+<button id="mic" type="button" title="點一下開始語音輸入、再點一下結束；或按住說話、放開送出（可拖曳移動）" aria-label="語音輸入">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <rect x="9" y="2.5" width="6" height="11.5" rx="3" />
     <path d="M5.5 11a6.5 6.5 0 0 0 13 0" />
@@ -38,27 +38,49 @@
 <script>
   const mic = document.getElementById('mic');
   const DRAG_PX = 5; // 移動超過這個距離才算拖曳，否則算點擊
+  const HOLD_MS = 300; // 按住超過這個時間算「按住說話」，與 F9 的輕按門檻一致
   let down = null;
   let isDragging = false;
+  let isHolding = false;
+  let holdTimer = null;
+  let state = 'idle';
 
-  window.micApi.onState((state) => {
-    mic.classList.toggle('listening', state === 'listening');
+  window.micApi.onState((next) => {
+    state = next;
+    mic.classList.toggle('active', state === 'listening' || state === 'recording');
     mic.title = state === 'listening'
       ? '聽寫中，點一下結束（可拖曳移動）'
-      : '點一下開始語音輸入，再點一下結束（可拖曳移動）';
+      : state === 'recording'
+        ? '錄音中，放開送出'
+        : '點一下開始語音輸入、再點一下結束；或按住說話、放開送出（可拖曳移動）';
   });
+
+  const clearHoldTimer = () => {
+    if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+  };
 
   mic.addEventListener('pointerdown', (e) => {
     if (e.button !== 0) return;
     mic.setPointerCapture(e.pointerId); // 拖得快、游標跑出小視窗時仍收得到事件
     down = { x: e.screenX, y: e.screenY };
     isDragging = false;
+    isHolding = false;
+    clearHoldTimer();
+    // 連續聽寫中按下一律當作「結束」，不進按住說話
+    if (state === 'listening') return;
+    holdTimer = setTimeout(() => {
+      holdTimer = null;
+      if (!down || isDragging) return;
+      isHolding = true;
+      window.micApi.holdStart();
+    }, HOLD_MS);
   });
 
   mic.addEventListener('pointermove', (e) => {
-    if (!down) return;
+    if (!down || isHolding) return; // 按住說話時手抖不算拖曳
     if (!isDragging && Math.hypot(e.screenX - down.x, e.screenY - down.y) > DRAG_PX) {
       isDragging = true;
+      clearHoldTimer();
       window.micApi.dragStart();
     }
     if (isDragging) window.micApi.dragMove();
@@ -67,9 +89,13 @@
   const finish = (isClick) => {
     if (!down) return;
     const wasDragging = isDragging;
+    const wasHolding = isHolding;
     down = null;
     isDragging = false;
-    if (wasDragging) window.micApi.dragEnd();
+    isHolding = false;
+    clearHoldTimer();
+    if (wasHolding) { if (isClick) window.micApi.holdEnd(); else window.micApi.holdCancel(); }
+    else if (wasDragging) window.micApi.dragEnd();
     else if (isClick) window.micApi.click();
   };
   mic.addEventListener('pointerup', (e) => { if (e.button === 0) finish(true); });

@@ -8,7 +8,7 @@ const { getStore } = require('./store');
 const SIZE = 56;
 
 let micWindow = null;
-let micState = 'idle'; // 'idle' | 'listening'
+let micState = 'idle'; // 'idle' | 'listening'（連續聽寫中）| 'recording'（按住說話中）
 let dragOffset = null; // 拖曳中：游標相對視窗左上角的位移
 
 function isMicButtonEnabled() {
@@ -99,7 +99,7 @@ function setMicButtonEnabled(enabled) {
 }
 
 function setMicState(state) {
-  const next = state === 'listening' ? 'listening' : 'idle';
+  const next = state === 'listening' || state === 'recording' ? state : 'idle';
   if (next === micState) return;
   micState = next;
   sendState();

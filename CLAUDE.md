@@ -23,6 +23,7 @@ Windows AI 語音輸入工具。按住 F9 說話 → 雲端 Whisper STT → LLM 
 5. onnxruntime-web 整包 111MB，不可放 dependencies（會整包進 asar）；只複製需要的 6 個檔
 6. recorder-page CSP 需 `'wasm-unsafe-eval'` 才能跑 wasm
 7. 潤稿失敗是 fail-open（回原文），所以模型下架這類錯誤使用者看不出來，只會在 log 留 `[llm] 潤稿失敗 (404)`。懷疑潤稿沒作用時先查 log；Groq 下架清單在 console.groq.com/docs/deprecations
+9. 要用程式測浮動麥克風鈕，別用 SetCursorPos 模擬真實滑鼠：鈕被拖到另一個螢幕（不同縮放）後座標對不上，會點到使用者畫面上別的東西。改用 `npx electron . --remote-debugging-port=9333` 啟動，再經 CDP 的 `Input.dispatchMouseEvent` 對 micbutton.html 送事件
 8. 「從別的視窗按按鈕來啟動聽寫」行不通：按鈕所在視窗會拿走焦點，Ctrl+V 就貼不到原本的輸入框。要用滑鼠啟動只能靠 `focusable:false` 的視窗（狀態浮窗、浮動麥克風鈕都是）
 
 ## 進度
@@ -34,6 +35,7 @@ Windows AI 語音輸入工具。按住 F9 說話 → 雲端 Whisper STT → LLM 
 - [ ] 連續聽寫：真人麥克風 + 雲端 STT 端到端實測
 
 - [x] 浮動麥克風鈕（0.1.16）：開發版以模擬滑鼠點擊實測——點一下開始聽寫、再點一下結束，點擊前後前景視窗不變（不搶焦點）。拖曳與真人講話貼字待使用者實測
+- [x] 麥克風鈕按住說話＋閒置自動結束可選 3／5／10 秒（0.1.17）：透過除錯埠在鈕的頁面內送滑鼠事件實測——按住開始錄、放開送辨識、聽寫中按下只結束，三項皆通過
 - [x] Groq 潤稿模型換成 `openai/gpt-oss-120b`（0.1.16）：`llama-3.3-70b-versatile` 於 2026-08-16 下架後每次潤稿都回 404、退回原文。新模型的實際潤稿結果尚未以真人語音驗證
 
 ## 驗證指令

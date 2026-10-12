@@ -4,6 +4,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('micApi', {
   onState: (cb) => ipcRenderer.on('mic-state', (_e, state) => cb(state)),
   click: () => ipcRenderer.send('mic-click'),
+  holdStart: () => ipcRenderer.send('mic-hold', 'start'),
+  holdEnd: () => ipcRenderer.send('mic-hold', 'end'),
+  holdCancel: () => ipcRenderer.send('mic-hold', 'cancel'),
   dragStart: () => ipcRenderer.send('mic-drag', 'start'),
   dragMove: () => ipcRenderer.send('mic-drag', 'move'),
   dragEnd: () => ipcRenderer.send('mic-drag', 'end'),

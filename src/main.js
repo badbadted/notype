@@ -5,7 +5,7 @@ const { createTray, refreshTrayMenu } = require('./tray');
 const { getStore, getSettingsForRenderer, applySettings } = require('./store');
 const { createRecorderWindow, cleanupOrphanTempAudio } = require('./recorder');
 const { createOverlayWindow, showOverlay, hideOverlay } = require('./overlay');
-const { registerShortcut, unregisterShortcut, handleAudioData, handleSegment, handleListenEvent, toggleListenFromButton } = require('./shortcut');
+const { registerShortcut, unregisterShortcut, handleAudioData, handleSegment, handleListenEvent, toggleListenFromButton, startRecFromButton, stopRecFromButton } = require('./shortcut');
 const { createMicButton, dragStart, dragMove, dragEnd } = require('./micbutton');
 
 // ── 跨機部署防護（必須在 app ready 前設定）──────────────────────
@@ -107,8 +107,14 @@ function registerIpc() {
   ipcMain.on('audio-segment', (_event, audioBuffer) => { handleSegment(audioBuffer); });
   ipcMain.on('listen-event', (_event, name) => { handleListenEvent(String(name)); });
 
-  // 浮動麥克風鈕：點擊切換連續聽寫；拖曳移動位置
+  // 浮動麥克風鈕：點擊切換連續聽寫；按住說話；拖曳移動位置
   ipcMain.on('mic-click', () => { toggleListenFromButton(); });
+  // 按住麥克風鈕說話：按下夠久才開始錄，放開送辨識
+  ipcMain.on('mic-hold', (_event, phase) => {
+    if (phase === 'start') startRecFromButton();
+    else if (phase === 'end') stopRecFromButton(false);
+    else if (phase === 'cancel') stopRecFromButton(true);
+  });
   ipcMain.on('mic-drag', (_event, phase) => {
     if (phase === 'start') dragStart();
     else if (phase === 'move') dragMove();
