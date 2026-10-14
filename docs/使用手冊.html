@@ -66,6 +66,7 @@
     <a href="#key">② 取得 API Key</a>
     <a href="#setup">③ 首次設定</a>
     <a href="#use">④ 開始使用</a>
+    <a href="#mic">浮動麥克風鈕</a>
     <a href="#hotkeys">四個熱鍵</a>
     <a href="#roles">潤稿角色</a>
     <a href="#settings">設定項說明</a>
@@ -76,10 +77,10 @@
   <main>
     <header class="hero">
       <h1>🎙️ NoType 安裝與使用手冊</h1>
-      <p>用說的取代打字 — 按住 <span class="kbd">F9</span> 說話，自動辨識 + AI 潤稿，文字直接出現在游標處。也能純打字用 <span class="kbd">F8</span> 選字潤稿。</p>
+      <p>用說的取代打字 — 按住 <span class="kbd">F9</span> 說話，自動辨識 + AI 潤稿，文字直接出現在游標處。不想碰鍵盤，用滑鼠點螢幕上的麥克風鈕也行。也能純打字用 <span class="kbd">F8</span> 選字潤稿。</p>
       <div class="badges">
         <span class="badge">Windows 10 / 11</span>
-        <span class="badge">v0.1.15</span>
+        <span class="badge">v0.1.17</span>
         <span class="badge">自帶 API Key（BYOK）</span>
         <span class="badge">常駐系統匣</span>
         <span class="badge">潤稿角色可自訂</span>
@@ -88,7 +89,7 @@
 
     <section id="intro">
       <h2><span class="n">i</span>這是什麼</h2>
-      <p>NoType 是常駐在 Windows 系統匣的語音輸入小工具。在任何可以打字的地方（Word、瀏覽器、聊天視窗、程式編輯器…），<b>按住 F9 說話、放開停止</b>，它會把你的語音透過雲端 Whisper 轉成文字、用 AI 潤稿（移除贅詞、加標點），再自動貼進你的游標位置。此外還能<b>選取一段已打好的文字、按 F8 讓 AI 潤稿並就地取代</b>——純打字也能一鍵潤色。</p>
+      <p>NoType 是常駐在 Windows 系統匣的語音輸入小工具。在任何可以打字的地方（Word、瀏覽器、聊天視窗、程式編輯器…），<b>按住 F9 說話、放開停止</b>，它會把你的語音透過雲端 Whisper 轉成文字、用 AI 潤稿（移除贅詞、加標點），再自動貼進你的游標位置。此外還能<b>選取一段已打好的文字、按 F8 讓 AI 潤稿並就地取代</b>——純打字也能一鍵潤色。螢幕上另有一顆<b>浮動麥克風鈕</b>，用滑鼠點一下或按住就能說話，全程不必碰鍵盤。</p>
       <div class="flow">
         <span class="b">按住 F9 說話</span><span class="arr">→</span>
         <span class="b">放開</span><span class="arr">→</span>
@@ -114,13 +115,13 @@
       <p>兩種方式擇一：</p>
       <h3>方式 A — 安裝檔（建議）</h3>
       <ol class="steps">
-        <li>執行 <code>NoType Setup 0.1.15.exe</code>（覆蓋安裝會自動升級舊版）</li>
+        <li>執行 <code>NoType Setup 0.1.17.exe</code>（覆蓋安裝會自動升級舊版）</li>
         <li>一鍵安裝完成，桌面/開始選單會出現 NoType 捷徑</li>
         <li>啟動後圖示常駐在右下角系統匣（藍色麥克風）</li>
       </ol>
       <h3>方式 B — 免安裝（Portable）</h3>
       <ol class="steps">
-        <li>把 <code>NoType-Portable-0.1.15.exe</code> 放到任意資料夾</li>
+        <li>把 <code>NoType-Portable-0.1.17.exe</code> 放到任意資料夾</li>
         <li>雙擊直接執行，無需安裝</li>
         <li>適合放隨身碟或不想安裝的情境</li>
       </ol>
@@ -168,7 +169,32 @@
         <li>直接說話；每次停頓約 1.2 秒，NoType 會把那一句辨識、潤稿後貼上，然後繼續聽</li>
         <li>說完了，再<b>輕按一次</b> <span class="kbd">F9</span> 結束（講到一半按也沒關係，那半句會照樣送出）</li>
       </ol>
-      <div class="note">判斷「有沒有人在說話」是在你的電腦上完成的（Silero VAD），只有切好的語句才會送去雲端辨識；沒講話時不會用到 API 額度。超過 1 分鐘沒人說話會自動結束，避免忘了關。按住 F9 超過 0.3 秒則照舊是「按住說話」。</div>
+      <div class="note">判斷「有沒有人在說話」是在你的電腦上完成的（Silero VAD），只有切好的語句才會送去雲端辨識；沒講話時不會用到 API 額度。超過 1 分鐘沒人說話會自動結束（可在設定頁改成 3 秒到 10 分鐘），避免忘了關。按住 F9 超過 0.3 秒則照舊是「按住說話」。</div>
+    </section>
+
+    <section id="mic">
+      <h2><span class="n">🖱</span>浮動麥克風鈕（只用滑鼠）</h2>
+      <p>啟動後螢幕右下角會有一顆白色小圓鈕，永遠浮在所有視窗上面。它做的事和 <span class="kbd">F9</span> 一樣，只是改用滑鼠。</p>
+      <table>
+        <tr><th>滑鼠動作</th><th>效果</th></tr>
+        <tr><td><b>點一下</b></td><td>開始連續聽寫；再點一下結束</td></tr>
+        <tr><td><b>按住</b>（超過 0.3 秒）</td><td>按住說話，放開就送去辨識並貼上</td></tr>
+        <tr><td><b>按住拖曳</b></td><td>把鈕移到別的位置，下次啟動會停在同一處</td></tr>
+      </table>
+      <ol class="steps">
+        <li>先在要輸入的地方點一下，讓游標停在那裡</li>
+        <li>點一下（或按住）麥克風鈕，鈕變紅色並出現脈動外圈，表示正在收音</li>
+        <li>說話；文字會貼進第 1 步的游標位置</li>
+      </ol>
+      <div class="note">點麥克風鈕不會把游標從輸入框帶走，所以不必點完再回去點一次輸入框。</div>
+      <h3>顯示 / 隱藏</h3>
+      <p>右鍵點系統匣的 NoType 圖示 → 勾選或取消「<b>浮動麥克風鈕</b>」。同一個選單還有「<b>說完自動送出</b>」可勾選，效果等同按 <span class="kbd">F10</span>。</p>
+      <h3>幾個細節</h3>
+      <ul>
+        <li>連續聽寫進行中，不管點一下還是按住，都是結束聽寫</li>
+        <li>設定頁「輕按快捷鍵」選「說完一句自動結束」時，點一下麥克風鈕也只收一句；選「停用」只關掉 F9 的輕按，麥克風鈕照常可用</li>
+        <li>按住說話時手稍微晃動不會變成拖曳；要移動位置請按下後直接拖</li>
+      </ul>
     </section>
 
     <section id="hotkeys">
@@ -181,7 +207,7 @@
         <tr><td><span class="kbd">F8</span></td><td>選字潤稿</td><td>選取一段文字 → 按 F8 → AI 依角色潤稿 → 就地取代（純打字用）</td></tr>
         <tr><td><span class="kbd">F10</span></td><td>切換「說完自動送出」</td><td>按一下開/關；開啟時語音貼上後會自動按 Enter 送出（聊天視窗用）</td></tr>
       </table>
-      <div class="note">若某個 F 鍵被其他程式（如錄影軟體）佔用，NoType 會自動改用其他可用鍵，設定頁會顯示目前實際生效的按鍵。</div>
+      <div class="note">若某個 F 鍵被其他程式（如錄影軟體）佔用，NoType 會自動改用其他可用鍵，設定頁會顯示目前實際生效的按鍵。語音輸入、連續聽寫、說完自動送出這三項也能只用滑鼠操作，見上一節「浮動麥克風鈕」。</div>
 
       <h3>🎙️ F8 選字潤稿（純打字也能用）</h3>
       <p>不想用語音、只是想潤飾已經打好的字時：在任何 App <b>選取一段文字 → 按 F8</b>，AI 會依<b>目前生效的角色</b>把它改寫並就地取代。例如選一段口語的訊息，切到「商務 Email」角色再按 F8，就變成正式語氣。會自動保留你原本的剪貼簿。</p>
@@ -227,7 +253,8 @@
         <tr><td>語音輸入快捷鍵</td><td>按住 <span class="kbd">F9</span> 說話（Windows 保留了 Alt+Space，故用 F9）</td></tr>
         <tr><td>輕按快捷鍵</td><td>連續聽寫（再按一次結束）/ 說完一句自動結束 / 停用</td></tr>
         <tr><td>停頓判定</td><td>停頓多久算一句話說完：0.8 / 1.2（預設）/ 1.8 / 2.5 秒。常被切斷就調長</td></tr>
-        <tr><td>閒置自動結束</td><td>連續聽寫多久沒人說話就自動關麥克風：30 秒 / 1 分鐘（預設）/ 3 / 10 分鐘 / 不自動結束</td></tr>
+        <tr><td>閒置自動結束</td><td>連續聽寫多久沒人說話就自動關麥克風：3 / 5 / 10 / 30 秒 / 1 分鐘（預設）/ 3 / 10 分鐘 / 不自動結束</td></tr>
+        <tr><td>浮動麥克風鈕</td><td>不在設定頁，在系統匣右鍵選單勾選顯示 / 隱藏（預設顯示）</td></tr>
         <tr><td>語音改寫</td><td>按住 <span class="kbd">F7</span>：對剛講的那段（或選取的文字）口述修改指令，AI 改寫取代</td></tr>
         <tr><td>選字潤稿</td><td>按 <span class="kbd">F8</span>：選取文字後 AI 依角色潤稿並就地取代</td></tr>
         <tr><td>開機自動啟動</td><td>開啟後每次開機自動常駐</td></tr>
@@ -250,6 +277,10 @@
         <tr><td>連續聽寫一句話被切成好幾段</td><td>設定頁「停頓判定」調長（1.8 或 2.5 秒）</td></tr>
         <tr><td>連續聽寫把旁人講話也打進去</td><td>環境吵雜時改用「按住 F9 說話」，或在設定頁把「輕按快捷鍵」改成「說完一句自動結束」</td></tr>
         <tr><td>聽寫中按 F7 / F8 沒作用</td><td>連續聽寫期間這兩個鍵暫停，先輕按 F9 結束聽寫</td></tr>
+        <tr><td>找不到浮動麥克風鈕</td><td>右鍵系統匣圖示，確認「浮動麥克風鈕」有打勾；取消再勾一次會把鈕拉回螢幕可見範圍</td></tr>
+        <tr><td>點麥克風鈕出現「處理中，請稍候」</td><td>上一段還在辨識或潤稿，等浮窗消失再點</td></tr>
+        <tr><td>點麥克風鈕後字沒貼進去</td><td>點鈕之前要先在輸入框點一下，讓游標停在那裡</td></tr>
+        <tr><td>聽寫太快自動結束</td><td>設定頁「閒置自動結束」調長（3 / 5 / 10 秒適合講一句就停的用法）</td></tr>
         <tr><td>程式異常 / 閃退</td><td>查 debug log（見下方），把內容回報</td></tr>
       </table>
       <div class="card2">
@@ -267,7 +298,7 @@
       </ul>
     </section>
 
-    <footer>NoType v0.1.15 · 安裝與使用手冊 · 原始碼 github.com/badbadted/notype</footer>
+    <footer>NoType v0.1.17 · 安裝與使用手冊 · 原始碼 github.com/badbadted/notype</footer>
   </main>
 </div>
 </body>
