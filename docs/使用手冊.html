@@ -80,7 +80,7 @@
       <p>用說的取代打字 — 按住 <span class="kbd">F9</span> 說話，自動辨識 + AI 潤稿，文字直接出現在游標處。不想碰鍵盤，用滑鼠點螢幕上的麥克風鈕也行。也能純打字用 <span class="kbd">F8</span> 選字潤稿。</p>
       <div class="badges">
         <span class="badge">Windows 10 / 11</span>
-        <span class="badge">v0.1.17</span>
+        <span class="badge">v0.1.18</span>
         <span class="badge">自帶 API Key（BYOK）</span>
         <span class="badge">常駐系統匣</span>
         <span class="badge">潤稿角色可自訂</span>
@@ -115,13 +115,13 @@
       <p>兩種方式擇一：</p>
       <h3>方式 A — 安裝檔（建議）</h3>
       <ol class="steps">
-        <li>執行 <code>NoType Setup 0.1.17.exe</code>（覆蓋安裝會自動升級舊版）</li>
+        <li>執行 <code>NoType Setup 0.1.18.exe</code>（覆蓋安裝會自動升級舊版）</li>
         <li>一鍵安裝完成，桌面/開始選單會出現 NoType 捷徑</li>
         <li>啟動後圖示常駐在右下角系統匣（藍色麥克風）</li>
       </ol>
       <h3>方式 B — 免安裝（Portable）</h3>
       <ol class="steps">
-        <li>把 <code>NoType-Portable-0.1.17.exe</code> 放到任意資料夾</li>
+        <li>把 <code>NoType-Portable-0.1.18.exe</code> 放到任意資料夾</li>
         <li>雙擊直接執行，無需安裝</li>
         <li>適合放隨身碟或不想安裝的情境</li>
       </ol>
@@ -194,6 +194,7 @@
         <li>連續聽寫進行中，不管點一下還是按住，都是結束聽寫</li>
         <li>設定頁「輕按快捷鍵」選「說完一句自動結束」時，點一下麥克風鈕也只收一句；選「停用」只關掉 F9 的輕按，麥克風鈕照常可用</li>
         <li>按住說話時手稍微晃動不會變成拖曳；要移動位置請按下後直接拖</li>
+        <li>其他視窗（工作列、開始選單、別的置頂程式）蓋住麥克風鈕或狀態浮窗時，約 2 秒內會自動回到最上層；按 Win+D 顯示桌面、退出全螢幕影片、電腦休眠喚醒之後也一樣（0.1.18 起）。只有獨佔全螢幕的遊戲會蓋過它</li>
       </ul>
     </section>
 
@@ -278,6 +279,7 @@
         <tr><td>連續聽寫把旁人講話也打進去</td><td>環境吵雜時改用「按住 F9 說話」，或在設定頁把「輕按快捷鍵」改成「說完一句自動結束」</td></tr>
         <tr><td>聽寫中按 F7 / F8 沒作用</td><td>連續聽寫期間這兩個鍵暫停，先輕按 F9 結束聽寫</td></tr>
         <tr><td>找不到浮動麥克風鈕</td><td>右鍵系統匣圖示，確認「浮動麥克風鈕」有打勾；取消再勾一次會把鈕拉回螢幕可見範圍</td></tr>
+        <tr><td>麥克風鈕或狀態浮窗被其他視窗蓋住</td><td>0.1.18 已修正，被蓋住後約 2 秒會自己浮回最上層；請更新到最新版。獨佔全螢幕的遊戲執行時一定會蓋住，退出遊戲後就會回來</td></tr>
         <tr><td>點麥克風鈕出現「處理中，請稍候」</td><td>上一段還在辨識或潤稿，等浮窗消失再點</td></tr>
         <tr><td>點麥克風鈕後字沒貼進去</td><td>點鈕之前要先在輸入框點一下，讓游標停在那裡</td></tr>
         <tr><td>聽寫太快自動結束</td><td>設定頁「閒置自動結束」調長（3 / 5 / 10 秒適合講一句就停的用法）</td></tr>
@@ -298,7 +300,7 @@
       </ul>
     </section>
 
-    <footer>NoType v0.1.17 · 安裝與使用手冊 · 原始碼 github.com/badbadted/notype</footer>
+    <footer>NoType v0.1.18 · 安裝與使用手冊 · 原始碼 github.com/badbadted/notype</footer>
   </main>
 </div>
 </body>
