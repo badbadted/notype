@@ -4,6 +4,7 @@ const { BrowserWindow, screen } = require('electron');
 const path = require('path');
 const { log } = require('./logger');
 const { getStore } = require('./store');
+const { keepOnTop } = require('./keep-on-top');
 
 const SIZE = 56;
 
@@ -77,6 +78,7 @@ function createMicButton() {
 
   micWindow.loadFile(path.join(__dirname, 'micbutton.html'));
   micWindow.setAlwaysOnTop(true, 'screen-saver');
+  keepOnTop(micWindow);
   micWindow.webContents.once('did-finish-load', () => {
     sendState();
     if (isMicButtonEnabled()) micWindow.showInactive();

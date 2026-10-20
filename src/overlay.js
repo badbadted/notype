@@ -3,6 +3,7 @@ const { BrowserWindow, screen } = require('electron');
 const path = require('path');
 const { log } = require('./logger');
 const { setTrayState } = require('./tray');
+const { keepOnTop } = require('./keep-on-top');
 
 let overlayWindow = null;
 let hideTimer = null;
@@ -31,6 +32,7 @@ function createOverlayWindow() {
 
   overlayWindow.loadFile(path.join(__dirname, 'overlay.html'));
   overlayWindow.setAlwaysOnTop(true, 'screen-saver');
+  keepOnTop(overlayWindow);
   overlayWindow.on('closed', () => { overlayWindow = null; });
   return overlayWindow;
 }

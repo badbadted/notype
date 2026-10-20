@@ -24,6 +24,7 @@ Windows AI 語音輸入工具。按住 F9 說話 → 雲端 Whisper STT → LLM 
 6. recorder-page CSP 需 `'wasm-unsafe-eval'` 才能跑 wasm
 7. 潤稿失敗是 fail-open（回原文），所以模型下架這類錯誤使用者看不出來，只會在 log 留 `[llm] 潤稿失敗 (404)`。懷疑潤稿沒作用時先查 log；Groq 下架清單在 console.groq.com/docs/deprecations
 9. 要用程式測浮動麥克風鈕，別用 SetCursorPos 模擬真實滑鼠：鈕被拖到另一個螢幕（不同縮放）後座標對不上，會點到使用者畫面上別的東西。改用 `npx electron . --remote-debugging-port=9333` 啟動，再經 CDP 的 `Input.dispatchMouseEvent` 對 micbutton.html 送事件
+10. 浮窗常被蓋到下面：Windows 不認 `setAlwaysOnTop` 的層級（`'screen-saver'` 只在 macOS 有效），所有置頂視窗同一層；`focusable:false` 的視窗不會被啟用，被壓下去就不會自己浮回來；Win+D、全螢幕退出、休眠喚醒還可能直接拿掉置頂屬性。統一由 `src/keep-on-top.js` 在浮窗顯示期間每 1.5 秒補設置頂＋`moveTop()`，螢幕變更／解鎖／喚醒時立即補設。新增浮窗一律呼叫 `keepOnTop(win)`
 8. 「從別的視窗按按鈕來啟動聽寫」行不通：按鈕所在視窗會拿走焦點，Ctrl+V 就貼不到原本的輸入框。要用滑鼠啟動只能靠 `focusable:false` 的視窗（狀態浮窗、浮動麥克風鈕都是）
 
 ## 進度
