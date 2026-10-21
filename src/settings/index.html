@@ -86,7 +86,7 @@
         <span>按住 <span class="kbd" id="hotkeyKbd">F9</span> 說話</span>
       </div>
       <div class="row">
-        <span class="lbl">滑鼠觸發鍵<small>用法跟快捷鍵一樣：按住說話、輕按連續聽寫。「上一頁」通常是靠手腕那顆；選中的鍵原本的功能會暫停</small></span>
+        <span class="lbl">滑鼠觸發：語音輸入<small>跟 F9 一樣：按住說話、輕按連續聽寫。「上一頁」通常是靠手腕那顆；選中的鍵原本的功能會暫停</small></span>
         <select id="mouseTrigger">
           <option value="off">不使用</option>
           <option value="x1">側鍵：上一頁</option>
@@ -94,6 +94,16 @@
           <option value="middle">滾輪中鍵</option>
         </select>
       </div>
+      <div class="row">
+        <span class="lbl">滑鼠觸發：語音改寫<small>跟 F7 一樣：按住說出修改指令，放開後改寫剛講的那段或選取的文字</small></span>
+        <select id="reviseMouseTrigger">
+          <option value="off">不使用</option>
+          <option value="x1">側鍵：上一頁</option>
+          <option value="x2">側鍵：下一頁</option>
+          <option value="middle">滾輪中鍵</option>
+        </select>
+      </div>
+      <div class="status bad" id="mouseConflict"></div>
       <div class="row">
         <span class="lbl">輕按快捷鍵<small>輕按一下（不按住）開始免持聽寫，自動偵測停頓切句</small></span>
         <select id="tapAction">

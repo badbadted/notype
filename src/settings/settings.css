@@ -134,3 +134,4 @@ footer .saved.show { opacity: 1; }
 .btn-primary { background: var(--ink); border: 0; color: #fff; padding: 9px 22px; border-radius: 8px; font-size: 13px; cursor: pointer; font-family: inherit; font-weight: 600; }
 .btn-primary:hover { background: #000; }
 .btn-ghost { background: transparent; border: 1px solid var(--border-strong); color: var(--t2); padding: 9px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; font-family: inherit; }
+#mouseConflict:empty { display: none; }

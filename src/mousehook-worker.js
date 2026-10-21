@@ -3,7 +3,7 @@
 // 放在主程序執行緒的話，主程序只要忙一下（寫檔、GC）整台電腦的滑鼠就會卡；回呼太慢 Windows 還會默默拆掉掛鉤。
 // 這個執行緒只做一件事：GetMessageW 迴圈＋回呼內判斷要不要攔，攔到就通知主程序。
 //
-// 觸發鍵由主程序寫進共用記憶體（SharedArrayBuffer），回呼每次都讀最新值，改設定不必重開執行緒。
+// 觸發鍵由主程序寫進共用記憶體（SharedArrayBuffer，兩格：語音輸入、語音改寫），回呼每次都讀最新值，改設定不必重開執行緒。
 // 被選中的那顆鍵會被吞掉（回傳 1），否則側鍵在瀏覽器裡會同時觸發上一頁／下一頁。
 const { parentPort, workerData } = require('worker_threads');
 const koffi = require(workerData.koffiPath);
@@ -31,7 +31,9 @@ const WH_MOUSE_LL = 14;
 const WM_MBUTTONDOWN = 0x0207, WM_MBUTTONUP = 0x0208;
 const WM_XBUTTONDOWN = 0x020B, WM_XBUTTONUP = 0x020C;
 // 共用記憶體裡的觸發鍵代碼（與 mousehook.js 的 BUTTON_CODES 對應）：0=關閉 1=上一頁鍵 2=下一頁鍵 3=中鍵
+// [0]=語音輸入、[1]=語音改寫；兩格同一顆時語音輸入優先
 const config = new Int32Array(workerData.shared);
+const ACTIONS = ['insert', 'revise'];
 
 let hook = 0;
 
@@ -39,8 +41,7 @@ let hook = 0;
 function onMouse(nCode, wParam, lParam) {
   if (nCode === 0 && (wParam === WM_XBUTTONDOWN || wParam === WM_XBUTTONUP || wParam === WM_MBUTTONDOWN || wParam === WM_MBUTTONUP)) {
     const info = koffi.decode(lParam, MSLLHOOKSTRUCT); // 只有按鍵事件才解碼，滑鼠移動直接放行
-    const want = Atomics.load(config, 0);
-    if (want !== 0) { // 不排除模擬點擊：用 AutoHotkey／X-Mouse 等工具改鍵的人，送來的側鍵就是模擬的
+    { // 不排除模擬點擊：用 AutoHotkey／X-Mouse 等工具改鍵的人，送來的側鍵就是模擬的
       let button = 0;
       let phase = null;
       if (wParam === WM_XBUTTONDOWN || wParam === WM_XBUTTONUP) {
@@ -50,8 +51,9 @@ function onMouse(nCode, wParam, lParam) {
         button = 3;
         phase = wParam === WM_MBUTTONDOWN ? 'down' : 'up';
       }
-      if (phase && button === want) {
-        parentPort.postMessage({ type: phase });
+      const slot = phase ? [0, 1].find((i) => Atomics.load(config, i) === button) : undefined;
+      if (slot !== undefined) {
+        parentPort.postMessage({ type: phase, action: ACTIONS[slot] });
         return 1; // 吞掉，不讓前景程式收到（不會跳上一頁）
       }
     }

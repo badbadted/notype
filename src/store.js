@@ -104,6 +104,7 @@ const defaults = {
   micButtonPos: null, // 浮動麥克風鈕的位置 { x, y }；null=右下角預設位置
   // 滑鼠觸發鍵：'off' | 'x1'（側鍵上一頁）| 'x2'（側鍵下一頁）| 'middle'（滾輪中鍵）；行為同 F9，選中的鍵原功能會被攔下
   mouseTrigger: 'off',
+  reviseMouseTrigger: 'off', // 語音改寫的滑鼠觸發鍵（行為同按住 F7），值同 mouseTrigger；兩者同一顆時改寫不生效
 };
 
 // 首次（或舊版升級）建立角色清單，並把舊的 llmStyle / llmCustomPrompt 遷移為角色

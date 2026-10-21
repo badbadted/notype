@@ -21,6 +21,8 @@ async function load() {
   setSelect('vadSilenceMs', s.vadSilenceMs, 1200);
   setSelect('listenIdleTimeoutSec', s.listenIdleTimeoutSec, 60);
   setSelect('mouseTrigger', s.mouseTrigger, 'off');
+  setSelect('reviseMouseTrigger', s.reviseMouseTrigger, 'off');
+  syncMouseConflict();
   syncTapDim();
   renderRoles();
   syncKeyField();
@@ -64,6 +66,14 @@ function syncTapDim() {
     $(id).style.opacity = off ? '.4' : '1';
     $(id).style.pointerEvents = off ? 'none' : 'auto';
   }
+}
+// 語音輸入與語音改寫不能選同一顆滑鼠鍵：選到一樣就顯示提示並擋下儲存
+function mouseConflict() {
+  const a = $('mouseTrigger').value;
+  return a !== 'off' && a === $('reviseMouseTrigger').value;
+}
+function syncMouseConflict() {
+  $('mouseConflict').textContent = mouseConflict() ? '語音輸入和語音改寫不能用同一顆鍵，請改選其中一個' : '';
 }
 function setToggle(id, on) { $(id).classList.toggle('on', on === true); }
 function setRadio(copy) {
@@ -180,6 +190,8 @@ $('llmEnabled').addEventListener('click', function () { this.classList.toggle('o
 $('launchAtStartup').addEventListener('click', function () { this.classList.toggle('on'); });
 $('autoSubmit').addEventListener('click', function () { this.classList.toggle('on'); });
 $('tapAction').addEventListener('change', syncTapDim);
+$('mouseTrigger').addEventListener('change', syncMouseConflict);
+$('reviseMouseTrigger').addEventListener('change', syncMouseConflict);
 $('optType').addEventListener('click', () => setRadio(false));
 $('optCopy').addEventListener('click', () => setRadio(true));
 $('apiKey').addEventListener('input', () => {
@@ -209,6 +221,7 @@ function setStatus(cls, txt) { $('keyStatus').className = 'status ' + cls; $('ke
 
 // 儲存
 $('btnSave').addEventListener('click', async () => {
+  if (mouseConflict()) { syncMouseConflict(); $('mouseConflict').scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
   const payload = {
     sttProvider: getSeg('sttSeg'),
     openaiApiKey: s.openaiApiKey || '',
@@ -224,6 +237,7 @@ $('btnSave').addEventListener('click', async () => {
     vadSilenceMs: Number($('vadSilenceMs').value),
     listenIdleTimeoutSec: Number($('listenIdleTimeoutSec').value),
     mouseTrigger: $('mouseTrigger').value,
+    reviseMouseTrigger: $('reviseMouseTrigger').value,
   };
   await window.notype.saveSettings(payload);
   s = { ...s, ...payload };

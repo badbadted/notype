@@ -7,7 +7,7 @@ const {
 } = require('./recorder');
 const { showOverlay, hideOverlay } = require('./overlay');
 const { setMicState } = require('./micbutton');
-const { setMouseTrigger, stopMouseHook } = require('./mousehook');
+const { setMouseTriggers, stopMouseHook } = require('./mousehook');
 const { transcribe } = require('./api/stt');
 const { polishText, reviseText, getActiveRole } = require('./api/llm');
 const { typeText, copyToClipboard, pressEnter, copySelection, paste, selectLeft, backupClipboard, restoreClipboard } = require('./typer');
@@ -224,7 +224,14 @@ function registerShortcut() {
 }
 
 function applyMouseTrigger() {
-  setMouseTrigger(getStore().get('mouseTrigger') || 'off', { onDown: onMouseTriggerDown, onUp: onMouseTriggerUp });
+  const store = getStore();
+  setMouseTriggers(
+    { insert: store.get('mouseTrigger') || 'off', revise: store.get('reviseMouseTrigger') || 'off' },
+    {
+      insert: { onDown: onMouseTriggerDown, onUp: onMouseTriggerUp },
+      revise: { onDown: onReviseMouseDown, onUp: onReviseMouseUp },
+    },
+  );
 }
 
 // 快速開關「說完自動送出」的熱鍵（與主熱鍵分開註冊，同樣自我修復）
@@ -323,7 +330,8 @@ function registerReviseHotkey() {
 }
 
 // 語音改寫：按住熱鍵時 → 複製目前選取文字 + 開始錄「修改指令」，放開後由 handleReviseAudio 處理
-function startReviseRec() {
+// fromMouse=true：由滑鼠觸發鍵開始，鍵已被掛鉤吞掉讀不到，放開由 onReviseMouseUp 通知，不輪詢
+function startReviseRec(fromMouse) {
   if (isRecording) return;
   if (isListening) { flashListenBusy(); return; }
   if (isProcessing) { showOverlay('error', '處理中，請稍候'); hideOverlay(1500); log.info('[revise] F7 被 isProcessing 擋'); return; }
@@ -338,12 +346,27 @@ function startReviseRec() {
   reviseBackup = backupClipboard();          // 使用者原剪貼簿
   reviseSelectionPromise = copySelection();   // 背景複製選取（Ctrl+C），放開後才 await
   isRecording = true;
-  pollVks = reviseVks;
   showOverlay('recording', '口述要怎麼改');
   startRecording();
+  if (fromMouse === true) return;
+  pollVks = reviseVks;
   keyPollTimer = setInterval(() => {
     if (pollVks.some((vk) => !isKeyDown(vk))) stopRec();
   }, 80);
+}
+
+// 滑鼠觸發鍵的語音改寫：按住說修改指令、放開套用，行為同按住 F7
+let reviseMouseHolding = false;
+function onReviseMouseDown() {
+  if (isRecording) return;
+  startReviseRec(true);
+  reviseMouseHolding = isRecording && captureMode === 'revise'; // 被擋下（聽寫中、處理中、沒金鑰）就不算開始
+  if (reviseMouseHolding) log.info('[mouse] 改寫觸發鍵按下 → 開始錄修改指令');
+}
+function onReviseMouseUp() {
+  if (!reviseMouseHolding) return;
+  reviseMouseHolding = false;
+  stopRec();
 }
 
 // 切換「說完自動送出」開/關，浮窗閃示狀態
