@@ -7,6 +7,7 @@ const {
 } = require('./recorder');
 const { showOverlay, hideOverlay } = require('./overlay');
 const { setMicState } = require('./micbutton');
+const { setMouseTrigger, stopMouseHook } = require('./mousehook');
 const { transcribe } = require('./api/stt');
 const { polishText, reviseText, getActiveRole } = require('./api/llm');
 const { typeText, copyToClipboard, pressEnter, copySelection, paste, selectLeft, backupClipboard, restoreClipboard } = require('./typer');
@@ -122,21 +123,59 @@ function readyForButton() {
   return true;
 }
 
+// 語音輸入開始錄音的共同步驟（F9、麥克風鈕、滑鼠觸發鍵共用）：浮窗顯示目前潤稿角色（潤稿開啟時）
+function beginInsertRec() {
+  const store = getStore();
+  captureMode = 'insert';
+  isRecording = true;
+  pressStartedAt = Date.now();
+  const role = store.get('llmEnabled') === true ? getActiveRole(store) : null;
+  showOverlay('recording', role ? role.name : '');
+  startRecording();
+}
+
+// 放開時判斷輕按還是按住：按不到 TAP_MS 且輕按未停用 → 丟掉這段、改進入連續聽寫；否則送辨識
+function finishHoldOrTap() {
+  const tapAction = getStore().get('tapAction') || 'continuous';
+  if (tapAction !== 'off' && Date.now() - pressStartedAt < TAP_MS) {
+    cancelRec();
+    startListen(tapAction === 'single');
+  } else {
+    stopRec();
+  }
+}
+
 // 浮動麥克風鈕「按住說話」：按住超過輕按門檻才會呼叫，放開由 stopRecFromButton 收尾。
 // 和按住 F9 走同一條錄音→辨識→貼上流程，差別只在「放開」由滑鼠事件通知，不輪詢鍵盤。
 let buttonHolding = false;
 function startRecFromButton() {
   if (isListening || isRecording || waitReleaseTimer) return;
   if (!readyForButton()) return;
-  const store = getStore();
-  captureMode = 'insert';
-  isRecording = true;
   buttonHolding = true;
-  const role = store.get('llmEnabled') === true ? getActiveRole(store) : null;
-  showOverlay('recording', role ? role.name : '');
-  startRecording();
+  beginInsertRec();
   setMicState('recording');
   log.info('[mic] 麥克風鈕按住 → 開始錄音');
+}
+
+// 滑鼠觸發鍵（側鍵／中鍵）：行為與 F9 相同——按住說話、輕按連續聽寫、聽寫中按下＝結束。
+// 鍵已被掛鉤吞掉，GetAsyncKeyState 讀不到，所以「放開」改由掛鉤事件通知，不輪詢。
+let mouseHolding = false;
+let mouseIgnoreUp = false; // 按下是用來結束聽寫的 → 對應的放開不再處理
+function onMouseTriggerDown() {
+  if (isListening) { stopListen(); mouseIgnoreUp = true; return; }
+  if (isRecording || waitReleaseTimer) return;
+  if (!readyForButton()) return;
+  mouseHolding = true;
+  beginInsertRec();
+  setMicState('recording');
+  log.info('[mouse] 滑鼠觸發鍵按下 → 開始錄音');
+}
+function onMouseTriggerUp() {
+  if (mouseIgnoreUp) { mouseIgnoreUp = false; return; }
+  if (!mouseHolding) return;
+  mouseHolding = false;
+  setMicState('idle');
+  if (isRecording) finishHoldOrTap();
 }
 
 // cancel=true：丟棄這段錄音（例如按住途中被系統中斷）
@@ -175,11 +214,17 @@ function registerShortcut() {
       registerSubmitToggleHotkey(); // 一併註冊「說完自動送出」開關熱鍵
       registerPolishHotkey(); // 一併註冊「選字即潤稿」熱鍵
       registerReviseHotkey(); // 一併註冊「語音改寫」熱鍵
+      applyMouseTrigger();
       return accel;
     }
   }
   log.error('[shortcut] 所有候選熱鍵都註冊失敗');
+  applyMouseTrigger(); // 鍵盤熱鍵全掛了，滑鼠觸發鍵仍可用
   return null;
+}
+
+function applyMouseTrigger() {
+  setMouseTrigger(getStore().get('mouseTrigger') || 'off', { onDown: onMouseTriggerDown, onUp: onMouseTriggerUp });
 }
 
 // 快速開關「說完自動送出」的熱鍵（與主熱鍵分開註冊，同樣自我修復）
@@ -325,25 +370,12 @@ function startRec() {
     return;
   }
 
-  captureMode = 'insert';
-  isRecording = true;
   pollVks = mainVks;
-  pressStartedAt = Date.now();
-  // 浮窗顯示目前潤稿角色（潤稿開啟時）
-  const role = store.get('llmEnabled') === true ? getActiveRole(store) : null;
-  showOverlay('recording', role ? role.name : '');
-  startRecording();
+  beginInsertRec();
 
   // 每 80ms 檢查熱鍵是否放開（任一鍵放開即停止）；按不到 TAP_MS 視為輕按 → 改進入連續聽寫
   keyPollTimer = setInterval(() => {
-    if (!pollVks.some((vk) => !isKeyDown(vk))) return;
-    const tapAction = store.get('tapAction') || 'continuous';
-    if (tapAction !== 'off' && Date.now() - pressStartedAt < TAP_MS) {
-      cancelRec();
-      startListen(tapAction === 'single');
-    } else {
-      stopRec();
-    }
+    if (pollVks.some((vk) => !isKeyDown(vk))) finishHoldOrTap();
   }, 80);
 }
 
@@ -670,6 +702,7 @@ function unregisterShortcut() {
   if (keyPollTimer) { clearInterval(keyPollTimer); keyPollTimer = null; }
   if (isListening) stopListen();
   globalShortcut.unregisterAll();
+  stopMouseHook();
 }
 
 module.exports = {

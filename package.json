@@ -38,6 +38,9 @@
       "src/**/*",
       "!**/*.map"
     ],
+    "asarUnpack": [
+      "src/mousehook-worker.js"
+    ],
     "extraResources": [
       {
         "from": "assets",

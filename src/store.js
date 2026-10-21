@@ -102,6 +102,8 @@ const defaults = {
   launchAtStartup: false,
   micButton: true, // 浮動麥克風鈕：滑鼠點一下開始 / 結束連續聽寫
   micButtonPos: null, // 浮動麥克風鈕的位置 { x, y }；null=右下角預設位置
+  // 滑鼠觸發鍵：'off' | 'x1'（側鍵上一頁）| 'x2'（側鍵下一頁）| 'middle'（滾輪中鍵）；行為同 F9，選中的鍵原功能會被攔下
+  mouseTrigger: 'off',
 };
 
 // 首次（或舊版升級）建立角色清單，並把舊的 llmStyle / llmCustomPrompt 遷移為角色

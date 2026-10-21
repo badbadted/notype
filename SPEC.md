@@ -38,6 +38,9 @@
 - 功能: toggleListenFromButton——浮動麥克風鈕的入口：聽寫中則結束；否則檢查金鑰與 isProcessing 後直接 startListen（輕按設為 single 時為單句）
 - 功能: startRecFromButton / stopRecFromButton——浮動麥克風鈕的按住說話：與按住 F9 走同一條錄音→辨識→貼上流程，但放開由滑鼠事件通知、不輪詢鍵盤；buttonHolding 旗標確保不會誤停由 F9 開始的錄音
 - 功能: 開始 / 結束連續聽寫（含 renderer 異常停止）與按住說話時呼叫 setMicState 同步浮動麥克風鈕的顏色
+- 功能: beginInsertRec / finishHoldOrTap——F9、麥克風鈕、滑鼠觸發鍵共用的「開始錄音」與「放開時判斷輕按或按住」
+- 功能: onMouseTriggerDown / onMouseTriggerUp——滑鼠觸發鍵（側鍵／中鍵）入口，行為同 F9：按住說話、輕按連續聽寫、聽寫中按下＝結束（對應的放開忽略）；放開由掛鉤事件通知，不輪詢
+- 功能: applyMouseTrigger——registerShortcut 時依設定 mouseTrigger 啟用／切換／關閉滑鼠掛鉤（鍵盤熱鍵全部註冊失敗時仍會套用）；unregisterShortcut 時拆除
 
 ## src/recorder.js — 錄音模組（主程序側）
 - 功能: 在系統 temp 下建 notype 子目錄存暫存音訊（recorder.js:15-19）
@@ -92,10 +95,27 @@
 - 功能: pressEnter——模擬按一下 Enter（聊天視窗自動送出用）（typer.js:145-150）
 - 依賴: electron clipboard、koffi、./logger
 
+## src/mousehook.js — 滑鼠觸發鍵（主程序側）
+- 功能: setMouseTrigger——'off' | 'x1'（側鍵上一頁）| 'x2'（側鍵下一頁）| 'middle'（滾輪中鍵）；選了才啟動 worker，改選別顆只寫共用記憶體（SharedArrayBuffer），選 off 則結束 worker
+- 功能: stopWorker——PostThreadMessageW(WM_QUIT) 讓 worker 的訊息迴圈結束並拆掉掛鉤，500ms 後 terminate 保險
+- 功能: workerScriptPath——打包後改指向 app.asar.unpacked（package.json asarUnpack 解出 worker 腳本）
+- 依賴: worker_threads、koffi、./logger
+
+## src/mousehook-worker.js — 滑鼠觸發鍵（worker 執行緒）
+- 功能: 安裝 WH_MOUSE_LL 低階滑鼠掛鉤並跑 GetMessageW 迴圈；放 worker 是因為全系統每次滑鼠移動都會經過回呼，放主程序執行緒會在主程序忙時讓整台電腦的滑鼠卡住
+- 功能: 回呼只處理 X 鍵／中鍵事件：符合共用記憶體裡的觸發鍵 → 通知主程序 down/up 並回傳 1 吞掉（瀏覽器不會跳上一頁）；其餘一律 CallNextHookEx 放行。不排除模擬點擊（AutoHotkey／X-Mouse 改鍵送來的就是模擬事件）
+- 依賴: worker_threads、koffi（路徑由 workerData 傳入）
+
+## src/keep-on-top.js — 浮窗置頂守護
+- 功能: keepOnTop(win)——浮窗顯示期間每 1.5 秒 setAlwaysOnTop＋moveTop()（SWP_NOACTIVATE，不搶焦點），全部隱藏時停計時器
+- 功能: 螢幕插拔／解析度變更、解除鎖定、休眠喚醒時立即補設，1 秒後再補一次
+- 原因: Windows 不認 setAlwaysOnTop 的層級；focusable:false 視窗被壓下不會自己浮回；Win+D 等操作會拿掉置頂屬性
+- 依賴: electron（screen / powerMonitor）、./logger
+
 ## src/store.js — 設定存儲與金鑰加密
 - 功能: 金鑰加密——以 Electron safeStorage（DPAPI）加密金鑰，加密值帶 safeStorage:v1: 前綴；不可用時 fallback 明文不崩潰（store.js:5-47）
 - 功能: BUILTIN_ROLES——5 個內建潤稿角色（口語轉書面 / 即時通訊 / 商務 Email / 會議記錄 / 程式技術），各含 persona prompt（store.js:50-71）
-- 功能: defaults——集中定義所有預設值（STT provider、語言、llmEnabled、輸入方式、熱鍵 F9、送出開關熱鍵 F10、開機啟動、tapAction、vadSilenceMs、listenIdleTimeoutSec）（store.js:74-97）
+- 功能: defaults——集中定義所有預設值（STT provider、語言、llmEnabled、輸入方式、熱鍵 F9、送出開關熱鍵 F10、開機啟動、tapAction、vadSilenceMs、listenIdleTimeoutSec、micButton、mouseTrigger）
 - 功能: migrateRoles——首次/升級時建角色清單，並把舊 llmStyle/llmCustomPrompt（含 custom/concise/translate_en）遷移為角色（store.js:100-126）
 - 功能: getApiKey / setApiKey——讀寫單一金鑰欄位（自動解密/加密）（store.js:129-136）
 - 功能: getSettingsForRenderer / applySettings——回傳整份設定（金鑰解密供 UI）/ 批次寫入（金鑰自動加密）（store.js:139-153）
@@ -146,6 +166,7 @@
 - 功能: 角色管理——渲染清單、選取/刪除（至少留 1 個）、開/關編輯器、新增/編輯角色（名稱/prompt/per-role model）（settings.js:75-147）
 - 功能: 事件綁定——STT provider 切換連動金鑰欄、各 toggle、輸入方式切換、金鑰輸入即時同步（settings.js:149-166）
 - 功能: 測試 API Key——呼叫主程序驗證並顯示結果狀態（settings.js:168-184）
+- 功能: 滑鼠觸發鍵（mouseTrigger）下拉選單，與其他設定一起儲存
 - 功能: 連續聽寫設定——輕按行為（tapAction）、停頓判定（vadSilenceMs）、閒置自動結束（listenIdleTimeoutSec）；tapAction=off 時淡化後兩項；setSelect 補上設定檔中不在選項內的值
 - 功能: 儲存——組 payload（含 roles/activeRoleId/各設定）寫回主程序並閃示已儲存提示（settings.js:186-206）
 - 依賴: window.notype（settings/preload.js 注入）、設定頁 DOM

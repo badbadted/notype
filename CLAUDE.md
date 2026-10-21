@@ -25,6 +25,7 @@ Windows AI 語音輸入工具。按住 F9 說話 → 雲端 Whisper STT → LLM 
 7. 潤稿失敗是 fail-open（回原文），所以模型下架這類錯誤使用者看不出來，只會在 log 留 `[llm] 潤稿失敗 (404)`。懷疑潤稿沒作用時先查 log；Groq 下架清單在 console.groq.com/docs/deprecations
 9. 要用程式測浮動麥克風鈕，別用 SetCursorPos 模擬真實滑鼠：鈕被拖到另一個螢幕（不同縮放）後座標對不上，會點到使用者畫面上別的東西。改用 `npx electron . --remote-debugging-port=9333` 啟動，再經 CDP 的 `Input.dispatchMouseEvent` 對 micbutton.html 送事件
 10. 浮窗常被蓋到下面：Windows 不認 `setAlwaysOnTop` 的層級（`'screen-saver'` 只在 macOS 有效），所有置頂視窗同一層；`focusable:false` 的視窗不會被啟用，被壓下去就不會自己浮回來；Win+D、全螢幕退出、休眠喚醒還可能直接拿掉置頂屬性。統一由 `src/keep-on-top.js` 在浮窗顯示期間每 1.5 秒補設置頂＋`moveTop()`，螢幕變更／解鎖／喚醒時立即補設。新增浮窗一律呼叫 `keepOnTop(win)`
+11. 滑鼠側鍵觸發用 WH_MOUSE_LL 低階掛鉤，一定要放在 worker 執行緒（`src/mousehook-worker.js`）自己跑 GetMessageW 迴圈：全系統每次滑鼠移動都會經過回呼，放主程序執行緒，主程序一忙整台電腦的滑鼠就卡，回呼太慢 Windows 還會默默拆掉掛鉤。被吞掉的鍵 GetAsyncKeyState 讀不到，放開要靠掛鉤事件。worker 腳本打包時要 asarUnpack。測「有沒有吞掉」：先在另一個程序裝觀察用掛鉤（排在鏈尾）再開 NoType，被吞掉的點擊觀察者就收不到
 8. 「從別的視窗按按鈕來啟動聽寫」行不通：按鈕所在視窗會拿走焦點，Ctrl+V 就貼不到原本的輸入框。要用滑鼠啟動只能靠 `focusable:false` 的視窗（狀態浮窗、浮動麥克風鈕都是）
 
 ## 進度
@@ -37,6 +38,7 @@ Windows AI 語音輸入工具。按住 F9 說話 → 雲端 Whisper STT → LLM 
 
 - [x] 浮動麥克風鈕（0.1.16）：開發版以模擬滑鼠點擊實測——點一下開始聽寫、再點一下結束，點擊前後前景視窗不變（不搶焦點）。拖曳與真人講話貼字待使用者實測
 - [x] 麥克風鈕按住說話＋閒置自動結束可選 3／5／10 秒（0.1.17）：透過除錯埠在鈕的頁面內送滑鼠事件實測——按住開始錄、放開送辨識、聽寫中按下只結束，三項皆通過
+- [x] 滑鼠觸發鍵（0.1.19）：設定頁可選側鍵上一頁／下一頁／滾輪中鍵，行為同 F9。開發版以 SendInput 送側鍵實測：按住錄音、輕按連續聽寫、聽寫中按下結束、選中的鍵被吞掉不傳給前景程式、改選別顆後原鍵放行、改回不使用時 worker 結束。真人滑鼠待使用者實測
 - [x] Groq 潤稿模型換成 `openai/gpt-oss-120b`（0.1.16）：`llama-3.3-70b-versatile` 於 2026-08-16 下架後每次潤稿都回 404、退回原文。新模型的實際潤稿結果尚未以真人語音驗證
 
 ## 驗證指令

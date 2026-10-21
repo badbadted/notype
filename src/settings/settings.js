@@ -20,6 +20,7 @@ async function load() {
   $('tapAction').value = s.tapAction || 'continuous';
   setSelect('vadSilenceMs', s.vadSilenceMs, 1200);
   setSelect('listenIdleTimeoutSec', s.listenIdleTimeoutSec, 60);
+  setSelect('mouseTrigger', s.mouseTrigger, 'off');
   syncTapDim();
   renderRoles();
   syncKeyField();
@@ -222,6 +223,7 @@ $('btnSave').addEventListener('click', async () => {
     tapAction: $('tapAction').value,
     vadSilenceMs: Number($('vadSilenceMs').value),
     listenIdleTimeoutSec: Number($('listenIdleTimeoutSec').value),
+    mouseTrigger: $('mouseTrigger').value,
   };
   await window.notype.saveSettings(payload);
   s = { ...s, ...payload };
