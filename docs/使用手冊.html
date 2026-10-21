@@ -67,6 +67,7 @@
     <a href="#setup">③ 首次設定</a>
     <a href="#use">④ 開始使用</a>
     <a href="#mic">浮動麥克風鈕</a>
+    <a href="#mouse">滑鼠側鍵觸發</a>
     <a href="#hotkeys">四個熱鍵</a>
     <a href="#roles">潤稿角色</a>
     <a href="#settings">設定項說明</a>
@@ -80,7 +81,7 @@
       <p>用說的取代打字 — 按住 <span class="kbd">F9</span> 說話，自動辨識 + AI 潤稿，文字直接出現在游標處。不想碰鍵盤，用滑鼠點螢幕上的麥克風鈕也行。也能純打字用 <span class="kbd">F8</span> 選字潤稿。</p>
       <div class="badges">
         <span class="badge">Windows 10 / 11</span>
-        <span class="badge">v0.1.18</span>
+        <span class="badge">v0.1.19</span>
         <span class="badge">自帶 API Key（BYOK）</span>
         <span class="badge">常駐系統匣</span>
         <span class="badge">潤稿角色可自訂</span>
@@ -115,13 +116,13 @@
       <p>兩種方式擇一：</p>
       <h3>方式 A — 安裝檔（建議）</h3>
       <ol class="steps">
-        <li>執行 <code>NoType Setup 0.1.18.exe</code>（覆蓋安裝會自動升級舊版）</li>
+        <li>執行 <code>NoType Setup 0.1.19.exe</code>（覆蓋安裝會自動升級舊版）</li>
         <li>一鍵安裝完成，桌面/開始選單會出現 NoType 捷徑</li>
         <li>啟動後圖示常駐在右下角系統匣（藍色麥克風）</li>
       </ol>
       <h3>方式 B — 免安裝（Portable）</h3>
       <ol class="steps">
-        <li>把 <code>NoType-Portable-0.1.18.exe</code> 放到任意資料夾</li>
+        <li>把 <code>NoType-Portable-0.1.19.exe</code> 放到任意資料夾</li>
         <li>雙擊直接執行，無需安裝</li>
         <li>適合放隨身碟或不想安裝的情境</li>
       </ol>
@@ -198,6 +199,27 @@
       </ul>
     </section>
 
+    <section id="mouse">
+      <h2><span class="n">🖲</span>滑鼠側鍵觸發（0.1.19 起）</h2>
+      <p>手放在滑鼠上時，不必移游標去點浮動鈕，也不必伸手按 <span class="kbd">F9</span>：把滑鼠的一顆鍵設成觸發鍵，用法跟 <span class="kbd">F9</span> 完全一樣。</p>
+      <ol class="steps">
+        <li>開設定頁 →「一般」→「<b>滑鼠觸發鍵</b>」</li>
+        <li>選<b>側鍵：上一頁</b>（通常是靠手腕那顆）、<b>側鍵：下一頁</b>或<b>滾輪中鍵</b> → 按「儲存設定」</li>
+      </ol>
+      <table>
+        <tr><th>滑鼠動作</th><th>效果</th></tr>
+        <tr><td><b>按住</b>觸發鍵</td><td>按住說話，放開就送去辨識並貼上</td></tr>
+        <tr><td><b>輕按</b>一下</td><td>開始連續聽寫（跟「輕按快捷鍵」的設定走）</td></tr>
+        <tr><td>聽寫中再按一下</td><td>結束聽寫</td></tr>
+      </table>
+      <div class="note">選中的那顆鍵原本的功能會暫停，例如設成「上一頁」後，在瀏覽器按它不會跳回上一頁。要恢復，把設定改回「不使用」即可。另外兩顆沒選的鍵照常運作。</div>
+      <ul>
+        <li>滑鼠沒有側鍵的話，可以選滾輪中鍵（按下滾輪）</li>
+        <li>前景是以系統管理員權限執行的視窗時，Windows 不會把滑鼠事件交給一般程式，這時觸發鍵沒作用，請改用 <span class="kbd">F9</span></li>
+        <li>已經用羅技、雷蛇等原廠軟體把側鍵設成 <span class="kbd">F9</span> 的話，這裡維持「不使用」就好，兩種擇一</li>
+      </ul>
+    </section>
+
     <section id="hotkeys">
       <h2><span class="n">⌨</span>四個熱鍵</h2>
       <table>
@@ -208,7 +230,7 @@
         <tr><td><span class="kbd">F8</span></td><td>選字潤稿</td><td>選取一段文字 → 按 F8 → AI 依角色潤稿 → 就地取代（純打字用）</td></tr>
         <tr><td><span class="kbd">F10</span></td><td>切換「說完自動送出」</td><td>按一下開/關；開啟時語音貼上後會自動按 Enter 送出（聊天視窗用）</td></tr>
       </table>
-      <div class="note">若某個 F 鍵被其他程式（如錄影軟體）佔用，NoType 會自動改用其他可用鍵，設定頁會顯示目前實際生效的按鍵。語音輸入、連續聽寫、說完自動送出這三項也能只用滑鼠操作，見上一節「浮動麥克風鈕」。</div>
+      <div class="note">若某個 F 鍵被其他程式（如錄影軟體）佔用，NoType 會自動改用其他可用鍵，設定頁會顯示目前實際生效的按鍵。語音輸入、連續聽寫、說完自動送出這三項也能只用滑鼠操作，見「浮動麥克風鈕」與「滑鼠側鍵觸發」兩節。</div>
 
       <h3>🎙️ F8 選字潤稿（純打字也能用）</h3>
       <p>不想用語音、只是想潤飾已經打好的字時：在任何 App <b>選取一段文字 → 按 F8</b>，AI 會依<b>目前生效的角色</b>把它改寫並就地取代。例如選一段口語的訊息，切到「商務 Email」角色再按 F8，就變成正式語氣。會自動保留你原本的剪貼簿。</p>
@@ -249,10 +271,11 @@
         <tr><th>設定</th><th>說明</th></tr>
         <tr><td>辨識服務</td><td>Groq Whisper（large-v3）或 OpenAI Whisper，各自填對應金鑰</td></tr>
         <tr><td>辨識語言</td><td>繁中 / 自動偵測（中英混雜）/ English / 日本語</td></tr>
-        <tr><td>AI 潤稿</td><td>開關 + <b>潤稿角色</b>清單（內建 5 個，可新增/編輯/刪除）。每個角色可各自選 Groq Llama 或 GPT-4o-mini</td></tr>
+        <tr><td>AI 潤稿</td><td>開關 + <b>潤稿角色</b>清單（內建 5 個，可新增/編輯/刪除）。每個角色可各自選 Groq GPT-OSS 或 GPT-4o-mini</td></tr>
         <tr><td>輸入方式</td><td>自動貼上到游標 vs 只複製到剪貼簿；「說完自動送出」開關（<span class="kbd">F10</span> 可快速切換）</td></tr>
         <tr><td>語音輸入快捷鍵</td><td>按住 <span class="kbd">F9</span> 說話（Windows 保留了 Alt+Space，故用 F9）</td></tr>
-        <tr><td>輕按快捷鍵</td><td>連續聽寫（再按一次結束）/ 說完一句自動結束 / 停用</td></tr>
+        <tr><td>滑鼠觸發鍵</td><td>不使用（預設）/ 側鍵：上一頁 / 側鍵：下一頁 / 滾輪中鍵，用法同 <span class="kbd">F9</span></td></tr>
+        <tr><td>輕按快捷鍵</td><td>連續聽寫（再按一次結束）/ 說完一句自動結束 / 停用；滑鼠觸發鍵的輕按也照這個設定</td></tr>
         <tr><td>停頓判定</td><td>停頓多久算一句話說完：0.8 / 1.2（預設）/ 1.8 / 2.5 秒。常被切斷就調長</td></tr>
         <tr><td>閒置自動結束</td><td>連續聽寫多久沒人說話就自動關麥克風：3 / 5 / 10 / 30 秒 / 1 分鐘（預設）/ 3 / 10 分鐘 / 不自動結束</td></tr>
         <tr><td>浮動麥克風鈕</td><td>不在設定頁，在系統匣右鍵選單勾選顯示 / 隱藏（預設顯示）</td></tr>
@@ -279,6 +302,8 @@
         <tr><td>連續聽寫把旁人講話也打進去</td><td>環境吵雜時改用「按住 F9 說話」，或在設定頁把「輕按快捷鍵」改成「說完一句自動結束」</td></tr>
         <tr><td>聽寫中按 F7 / F8 沒作用</td><td>連續聽寫期間這兩個鍵暫停，先輕按 F9 結束聽寫</td></tr>
         <tr><td>找不到浮動麥克風鈕</td><td>右鍵系統匣圖示，確認「浮動麥克風鈕」有打勾；取消再勾一次會把鈕拉回螢幕可見範圍</td></tr>
+        <tr><td>滑鼠觸發鍵沒反應</td><td>確認設定頁選的是你按的那顆鍵並已儲存；前景是系統管理員權限的視窗時沒作用，改用 F9</td></tr>
+        <tr><td>瀏覽器的上一頁鍵不能用了</td><td>設定頁「滑鼠觸發鍵」選了「側鍵：上一頁」，改選別顆或「不使用」</td></tr>
         <tr><td>麥克風鈕或狀態浮窗被其他視窗蓋住</td><td>0.1.18 已修正，被蓋住後約 2 秒會自己浮回最上層；請更新到最新版。獨佔全螢幕的遊戲執行時一定會蓋住，退出遊戲後就會回來</td></tr>
         <tr><td>點麥克風鈕出現「處理中，請稍候」</td><td>上一段還在辨識或潤稿，等浮窗消失再點</td></tr>
         <tr><td>點麥克風鈕後字沒貼進去</td><td>點鈕之前要先在輸入框點一下，讓游標停在那裡</td></tr>
@@ -300,7 +325,7 @@
       </ul>
     </section>
 
-    <footer>NoType v0.1.18 · 安裝與使用手冊 · 原始碼 github.com/badbadted/notype</footer>
+    <footer>NoType v0.1.19 · 安裝與使用手冊 · 原始碼 github.com/badbadted/notype</footer>
   </main>
 </div>
 </body>
