@@ -226,10 +226,15 @@ function registerShortcut() {
 function applyMouseTrigger() {
   const store = getStore();
   setMouseTriggers(
-    { insert: store.get('mouseTrigger') || 'off', revise: store.get('reviseMouseTrigger') || 'off' },
+    {
+      insert: store.get('mouseTrigger') || 'off',
+      revise: store.get('reviseMouseTrigger') || 'off',
+      submitToggle: store.get('submitToggleMouse') || 'off',
+    },
     {
       insert: { onDown: onMouseTriggerDown, onUp: onMouseTriggerUp },
       revise: { onDown: onReviseMouseDown, onUp: onReviseMouseUp },
+      submitToggle: { onDown: toggleAutoSubmit, onUp: () => {} }, // 同 F10：按一下切換，放開不做事
     },
   );
 }

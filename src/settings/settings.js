@@ -22,6 +22,7 @@ async function load() {
   setSelect('listenIdleTimeoutSec', s.listenIdleTimeoutSec, 60);
   setSelect('mouseTrigger', s.mouseTrigger, 'off');
   setSelect('reviseMouseTrigger', s.reviseMouseTrigger, 'off');
+  setSelect('submitToggleMouse', s.submitToggleMouse, 'off');
   syncMouseConflict();
   syncTapDim();
   renderRoles();
@@ -67,13 +68,33 @@ function syncTapDim() {
     $(id).style.pointerEvents = off ? 'none' : 'auto';
   }
 }
-// 語音輸入與語音改寫不能選同一顆滑鼠鍵：選到一樣就顯示提示並擋下儲存
+// 三個滑鼠鍵設定不能選同一顆：選到一樣就在相關的那一列下方顯示提示，並擋下儲存
+const MOUSE_SELECTS = [
+  ['mouseTrigger', '語音輸入'],
+  ['reviseMouseTrigger', '語音改寫'],
+  ['submitToggleMouse', '切換自動送出'],
+];
+// 回傳 null 或 { msg, box }：box 是要顯示提示的那個狀態列 id
 function mouseConflict() {
-  const a = $('mouseTrigger').value;
-  return a !== 'off' && a === $('reviseMouseTrigger').value;
+  for (let i = 0; i < MOUSE_SELECTS.length; i++) {
+    for (let j = i + 1; j < MOUSE_SELECTS.length; j++) {
+      const [idA, nameA] = MOUSE_SELECTS[i];
+      const [idB, nameB] = MOUSE_SELECTS[j];
+      const v = $(idA).value;
+      if (v !== 'off' && v === $(idB).value) {
+        const box = idB === 'submitToggleMouse' ? 'submitMouseConflict' : 'mouseConflict';
+        return { msg: `${nameA}和${nameB}不能用同一顆鍵，請改選其中一個`, box };
+      }
+    }
+  }
+  return null;
 }
 function syncMouseConflict() {
-  $('mouseConflict').textContent = mouseConflict() ? '語音輸入和語音改寫不能用同一顆鍵，請改選其中一個' : '';
+  const c = mouseConflict();
+  for (const box of ['mouseConflict', 'submitMouseConflict']) {
+    $(box).textContent = c && c.box === box ? c.msg : '';
+  }
+  return c;
 }
 function setToggle(id, on) { $(id).classList.toggle('on', on === true); }
 function setRadio(copy) {
@@ -83,10 +104,12 @@ function setRadio(copy) {
 }
 function syncAutoSubmitDim() {
   const copyMode = $('optCopy').classList.contains('sel');
-  const row = $('autoSubmitRow');
-  if (!row) return;
-  row.style.opacity = copyMode ? '.4' : '1';
-  row.style.pointerEvents = copyMode ? 'none' : 'auto';
+  for (const id of ['autoSubmitRow', 'submitToggleMouseRow']) {
+    const row = $(id);
+    if (!row) continue;
+    row.style.opacity = copyMode ? '.4' : '1';
+    row.style.pointerEvents = copyMode ? 'none' : 'auto';
+  }
 }
 function activeKeyName() { return getSeg('sttSeg') === 'groq' ? 'groqApiKey' : 'openaiApiKey'; }
 function syncKeyField() {
@@ -192,6 +215,7 @@ $('autoSubmit').addEventListener('click', function () { this.classList.toggle('o
 $('tapAction').addEventListener('change', syncTapDim);
 $('mouseTrigger').addEventListener('change', syncMouseConflict);
 $('reviseMouseTrigger').addEventListener('change', syncMouseConflict);
+$('submitToggleMouse').addEventListener('change', syncMouseConflict);
 $('optType').addEventListener('click', () => setRadio(false));
 $('optCopy').addEventListener('click', () => setRadio(true));
 $('apiKey').addEventListener('input', () => {
@@ -221,7 +245,8 @@ function setStatus(cls, txt) { $('keyStatus').className = 'status ' + cls; $('ke
 
 // 儲存
 $('btnSave').addEventListener('click', async () => {
-  if (mouseConflict()) { syncMouseConflict(); $('mouseConflict').scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+  const conflict = syncMouseConflict();
+  if (conflict) { $(conflict.box).scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
   const payload = {
     sttProvider: getSeg('sttSeg'),
     openaiApiKey: s.openaiApiKey || '',
@@ -238,6 +263,7 @@ $('btnSave').addEventListener('click', async () => {
     listenIdleTimeoutSec: Number($('listenIdleTimeoutSec').value),
     mouseTrigger: $('mouseTrigger').value,
     reviseMouseTrigger: $('reviseMouseTrigger').value,
+    submitToggleMouse: $('submitToggleMouse').value,
   };
   await window.notype.saveSettings(payload);
   s = { ...s, ...payload };

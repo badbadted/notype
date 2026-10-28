@@ -76,6 +76,16 @@
         <span class="lbl">說完自動送出<small>貼上後自動按 Enter；按 <span id="submitHk" class="kbd">F10</span> 可快速開關</small></span>
         <div class="tg" id="autoSubmit"></div>
       </div>
+      <div class="row" id="submitToggleMouseRow">
+        <span class="lbl">滑鼠切換：說完自動送出<small>跟 F10 一樣：按一下開／關自動送出，浮窗會顯示目前狀態；選中的鍵原本的功能會暫停</small></span>
+        <select id="submitToggleMouse">
+          <option value="off">不使用</option>
+          <option value="x1">側鍵：上一頁</option>
+          <option value="x2">側鍵：下一頁</option>
+          <option value="middle">滾輪中鍵</option>
+        </select>
+      </div>
+      <div class="status bad" id="submitMouseConflict"></div>
     </div>
 
     <!-- 一般 -->

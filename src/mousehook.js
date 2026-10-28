@@ -1,6 +1,6 @@
 // 滑鼠觸發鍵（主程序）— 管理 mousehook-worker 執行緒，把側鍵 / 中鍵的按下、放開轉成事件。
-// 兩個用途各自一顆鍵：語音輸入（同 F9）、語音改寫（同 F7）。
-// 兩個都沒選時完全不裝掛鉤；有選才啟動 worker，改選別顆鍵只改共用記憶體，不重開。
+// 三個用途各自一顆鍵：語音輸入（同 F9）、語音改寫（同 F7）、切換說完自動送出（同 F10）。
+// 全都沒選時完全不裝掛鉤；有選才啟動 worker，改選別顆鍵只改共用記憶體，不重開。
 const path = require('path');
 const { Worker } = require('worker_threads');
 const koffi = require('koffi');
@@ -12,13 +12,14 @@ const WM_QUIT = 0x0012;
 const user32 = koffi.load('user32.dll');
 const PostThreadMessageW = user32.func('bool __stdcall PostThreadMessageW(uint32 threadId, uint32 msg, uintptr_t wParam, intptr_t lParam)');
 
-const shared = new SharedArrayBuffer(8); // [0]=語音輸入、[1]=語音改寫
+const ACTIONS = ['insert', 'revise', 'submitToggle']; // 共用記憶體格子順序 = 撞鍵時的優先順序
+const shared = new SharedArrayBuffer(4 * ACTIONS.length); // [0]=語音輸入、[1]=語音改寫、[2]=切換自動送出
 const config = new Int32Array(shared);
 let worker = null;
 let workerThreadId = 0;
-// handlers: { insert: { onDown, onUp }, revise: { onDown, onUp } }
+// handlers: { insert | revise | submitToggle: { onDown, onUp } }
 const noop = { onDown: () => {}, onUp: () => {} };
-let handlers = { insert: noop, revise: noop };
+let handlers = { insert: noop, revise: noop, submitToggle: noop };
 
 function workerScriptPath() {
   // 打包後 worker 腳本由 asarUnpack 解出（Worker 無法直接從 app.asar 載入檔案）
@@ -56,26 +57,29 @@ function stopWorker() {
   setTimeout(() => { w.terminate().catch(() => {}); }, 500); // 保險：沒正常結束就強制收掉
 }
 
-// triggers: { insert, revise }，值為 'off' | 'x1' | 'x2' | 'middle'；兩個同一顆時改寫視為不使用（語音輸入優先）
+// triggers: { insert, revise, submitToggle }，值為 'off' | 'x1' | 'x2' | 'middle'
+// 撞鍵時依 ACTIONS 順序，前面的優先、後面的視為不使用（設定頁會擋，這裡是保險）
 function setMouseTriggers(triggers, nextHandlers) {
-  if (nextHandlers) handlers = { insert: nextHandlers.insert || noop, revise: nextHandlers.revise || noop };
-  const insert = BUTTON_CODES[triggers.insert] || 0;
-  let revise = BUTTON_CODES[triggers.revise] || 0;
-  if (revise && revise === insert) {
-    log.warn('[mouse] 語音輸入與語音改寫選了同一顆鍵，改寫先停用');
-    revise = 0;
-  }
-  Atomics.store(config, 0, insert);
-  Atomics.store(config, 1, revise);
-  const any = insert || revise;
+  if (nextHandlers) handlers = Object.fromEntries(ACTIONS.map((a) => [a, nextHandlers[a] || noop]));
+  const codes = [];
+  ACTIONS.forEach((action, i) => {
+    let code = BUTTON_CODES[triggers[action]] || 0;
+    const taken = codes.indexOf(code);
+    if (code && taken !== -1) {
+      log.warn(`[mouse] ${action} 與 ${ACTIONS[taken]} 選了同一顆鍵，${action} 先停用`);
+      code = 0;
+    }
+    codes.push(code);
+    Atomics.store(config, i, code);
+  });
+  const any = codes.some(Boolean);
   if (any && !worker) startWorker();
   else if (!any && worker) stopWorker();
-  log.info('[mouse] 滑鼠觸發鍵 → 語音輸入:', insert ? triggers.insert : '不使用', '／語音改寫:', revise ? triggers.revise : '不使用');
+  log.info('[mouse] 滑鼠觸發鍵 →', ACTIONS.map((a, i) => `${a}:${codes[i] ? triggers[a] : 'off'}`).join(' '));
 }
 
 function stopMouseHook() {
-  Atomics.store(config, 0, 0);
-  Atomics.store(config, 1, 0);
+  ACTIONS.forEach((_, i) => Atomics.store(config, i, 0));
   stopWorker();
 }
 

@@ -3,7 +3,7 @@
 // 放在主程序執行緒的話，主程序只要忙一下（寫檔、GC）整台電腦的滑鼠就會卡；回呼太慢 Windows 還會默默拆掉掛鉤。
 // 這個執行緒只做一件事：GetMessageW 迴圈＋回呼內判斷要不要攔，攔到就通知主程序。
 //
-// 觸發鍵由主程序寫進共用記憶體（SharedArrayBuffer，兩格：語音輸入、語音改寫），回呼每次都讀最新值，改設定不必重開執行緒。
+// 觸發鍵由主程序寫進共用記憶體（SharedArrayBuffer，三格：語音輸入、語音改寫、切換自動送出），回呼每次都讀最新值，改設定不必重開執行緒。
 // 被選中的那顆鍵會被吞掉（回傳 1），否則側鍵在瀏覽器裡會同時觸發上一頁／下一頁。
 const { parentPort, workerData } = require('worker_threads');
 const koffi = require(workerData.koffiPath);
@@ -31,9 +31,9 @@ const WH_MOUSE_LL = 14;
 const WM_MBUTTONDOWN = 0x0207, WM_MBUTTONUP = 0x0208;
 const WM_XBUTTONDOWN = 0x020B, WM_XBUTTONUP = 0x020C;
 // 共用記憶體裡的觸發鍵代碼（與 mousehook.js 的 BUTTON_CODES 對應）：0=關閉 1=上一頁鍵 2=下一頁鍵 3=中鍵
-// [0]=語音輸入、[1]=語音改寫；兩格同一顆時語音輸入優先
+// [0]=語音輸入、[1]=語音改寫、[2]=切換自動送出；主程序已保證不會兩格同一顆
 const config = new Int32Array(workerData.shared);
-const ACTIONS = ['insert', 'revise'];
+const ACTIONS = ['insert', 'revise', 'submitToggle'];
 
 let hook = 0;
 
@@ -51,8 +51,8 @@ function onMouse(nCode, wParam, lParam) {
         button = 3;
         phase = wParam === WM_MBUTTONDOWN ? 'down' : 'up';
       }
-      const slot = phase ? [0, 1].find((i) => Atomics.load(config, i) === button) : undefined;
-      if (slot !== undefined) {
+      const slot = phase ? ACTIONS.findIndex((_, i) => Atomics.load(config, i) === button) : -1;
+      if (slot !== -1) {
         parentPort.postMessage({ type: phase, action: ACTIONS[slot] });
         return 1; // 吞掉，不讓前景程式收到（不會跳上一頁）
       }
