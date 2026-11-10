@@ -6,7 +6,6 @@ const {
   startRecording, stopRecording, cancelRecording, startListening, stopListening, saveAudioBuffer, cleanupTempAudio,
 } = require('./recorder');
 const { showOverlay, hideOverlay } = require('./overlay');
-const { setMicState } = require('./micbutton');
 const { setMouseTriggers, stopMouseHook } = require('./mousehook');
 const { transcribe } = require('./api/stt');
 const { polishText, reviseText, getActiveRole } = require('./api/llm');
@@ -99,19 +98,9 @@ function onMainHotkey() {
   if (!isRecording) startRec();
 }
 
-// 浮動麥克風鈕：滑鼠點一下開始連續聽寫，再點一下結束。
-// 不經熱鍵、沒有「按住」可言，所以直接進連續聽寫（輕按設成單句時則說完一句自動結束）。
-function toggleListenFromButton() {
-  if (isListening) { stopListen(); return; }
-  if (isRecording || waitReleaseTimer) return;
-  if (!readyForButton()) return;
-  log.info('[mic] 麥克風鈕 → 開始聽寫');
-  startListen(getStore().get('tapAction') === 'single');
-}
-
-// 麥克風鈕要開始收音前的共同檢查：處理中或沒設金鑰就用浮窗提示並回 false
-function readyForButton() {
-  if (isProcessing) { showOverlay('error', '處理中，請稍候'); hideOverlay(1500); log.info('[flow] 麥克風鈕被 isProcessing 擋'); return false; }
+// 滑鼠觸發鍵要開始收音前的共同檢查：處理中或沒設金鑰就用浮窗提示並回 false
+function readyForMouse() {
+  if (isProcessing) { showOverlay('error', '處理中，請稍候'); hideOverlay(1500); log.info('[flow] 滑鼠觸發鍵被 isProcessing 擋'); return false; }
   const store = getStore();
   const provider = store.get('sttProvider') || 'groq';
   const keyField = provider === 'openai' ? 'openaiApiKey' : 'groqApiKey';
@@ -123,7 +112,7 @@ function readyForButton() {
   return true;
 }
 
-// 語音輸入開始錄音的共同步驟（F9、麥克風鈕、滑鼠觸發鍵共用）：浮窗顯示目前潤稿角色（潤稿開啟時）
+// 語音輸入開始錄音的共同步驟（F9、滑鼠觸發鍵共用）：浮窗顯示目前潤稿角色（潤稿開啟時）
 function beginInsertRec() {
   const store = getStore();
   captureMode = 'insert';
@@ -145,18 +134,6 @@ function finishHoldOrTap() {
   }
 }
 
-// 浮動麥克風鈕「按住說話」：按住超過輕按門檻才會呼叫，放開由 stopRecFromButton 收尾。
-// 和按住 F9 走同一條錄音→辨識→貼上流程，差別只在「放開」由滑鼠事件通知，不輪詢鍵盤。
-let buttonHolding = false;
-function startRecFromButton() {
-  if (isListening || isRecording || waitReleaseTimer) return;
-  if (!readyForButton()) return;
-  buttonHolding = true;
-  beginInsertRec();
-  setMicState('recording');
-  log.info('[mic] 麥克風鈕按住 → 開始錄音');
-}
-
 // 滑鼠觸發鍵（側鍵／中鍵）：行為與 F9 相同——按住說話、輕按連續聽寫、聽寫中按下＝結束。
 // 鍵已被掛鉤吞掉，GetAsyncKeyState 讀不到，所以「放開」改由掛鉤事件通知，不輪詢。
 let mouseHolding = false;
@@ -164,28 +141,16 @@ let mouseIgnoreUp = false; // 按下是用來結束聽寫的 → 對應的放開
 function onMouseTriggerDown() {
   if (isListening) { stopListen(); mouseIgnoreUp = true; return; }
   if (isRecording || waitReleaseTimer) return;
-  if (!readyForButton()) return;
+  if (!readyForMouse()) return;
   mouseHolding = true;
   beginInsertRec();
-  setMicState('recording');
   log.info('[mouse] 滑鼠觸發鍵按下 → 開始錄音');
 }
 function onMouseTriggerUp() {
   if (mouseIgnoreUp) { mouseIgnoreUp = false; return; }
   if (!mouseHolding) return;
   mouseHolding = false;
-  setMicState('idle');
   if (isRecording) finishHoldOrTap();
-}
-
-// cancel=true：丟棄這段錄音（例如按住途中被系統中斷）
-function stopRecFromButton(cancel) {
-  if (!buttonHolding) return; // 不是由麥克風鈕開始的錄音（例如正按著 F9）就不碰
-  buttonHolding = false;
-  setMicState('idle');
-  if (!isRecording) return;
-  if (cancel === true) { cancelRec(); hideOverlay(0); return; }
-  stopRec();
 }
 
 function waitForRelease(vks) {
@@ -578,7 +543,6 @@ function startListen(single) {
   showListeningOverlay('啟動麥克風…');
   startListening({ silenceMs });
   resetIdleTimer();
-  setMicState('listening');
 }
 
 function stopListen(reason) {
@@ -586,7 +550,6 @@ function stopListen(reason) {
   isListening = false;
   isSpeaking = false;
   listenStopping = true;
-  setMicState('idle');
   clearIdleTimer();
   if (overlayRestoreTimer) { clearTimeout(overlayRestoreTimer); overlayRestoreTimer = null; }
   if (listenStopWatchdog) clearTimeout(listenStopWatchdog);
@@ -625,7 +588,6 @@ function handleListenEvent(name) {
         log.warn('[listen] renderer 已停止聆聽，同步結束');
         isListening = false;
         isSpeaking = false;
-        setMicState('idle');
         clearIdleTimer();
       }
       break;
@@ -735,5 +697,4 @@ function unregisterShortcut() {
 
 module.exports = {
   registerShortcut, unregisterShortcut, handleAudioData, handleSegment, handleListenEvent,
-  toggleListenFromButton, startRecFromButton, stopRecFromButton,
 };

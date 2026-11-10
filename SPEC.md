@@ -35,10 +35,7 @@
 - 功能: handleAudioData——端到端流程：空音訊略過 → isProcessing 並發鎖 → 存暫存檔 → STT 轉錄 → LLM 潤稿 → 依設定走「複製到剪貼簿」或「貼上（autoSubmit 時補按 Enter）」→ finally 清本輪暫存檔並釋放並發鎖（shortcut.js:133-196）
 - 依賴: electron globalShortcut、koffi、./store、./recorder、./overlay、./api/stt、./api/llm、./typer、./logger
 
-- 功能: toggleListenFromButton——浮動麥克風鈕的入口：聽寫中則結束；否則檢查金鑰與 isProcessing 後直接 startListen（輕按設為 single 時為單句）
-- 功能: startRecFromButton / stopRecFromButton——浮動麥克風鈕的按住說話：與按住 F9 走同一條錄音→辨識→貼上流程，但放開由滑鼠事件通知、不輪詢鍵盤；buttonHolding 旗標確保不會誤停由 F9 開始的錄音
-- 功能: 開始 / 結束連續聽寫（含 renderer 異常停止）與按住說話時呼叫 setMicState 同步浮動麥克風鈕的顏色
-- 功能: beginInsertRec / finishHoldOrTap——F9、麥克風鈕、滑鼠觸發鍵共用的「開始錄音」與「放開時判斷輕按或按住」
+- 功能: beginInsertRec / finishHoldOrTap——F9、滑鼠觸發鍵共用的「開始錄音」與「放開時判斷輕按或按住」
 - 功能: onMouseTriggerDown / onMouseTriggerUp——滑鼠觸發鍵（側鍵／中鍵）入口，行為同 F9：按住說話、輕按連續聽寫、聽寫中按下＝結束（對應的放開忽略）；放開由掛鉤事件通知，不輪詢
 - 功能: onReviseMouseDown / onReviseMouseUp——語音改寫的滑鼠觸發鍵入口，行為同按住 F7；startReviseRec(fromMouse=true) 不輪詢鍵盤，放開由掛鉤事件通知
 - 功能: applyMouseTrigger——registerShortcut 時依設定 mouseTrigger（語音輸入）、reviseMouseTrigger（語音改寫）與 submitToggleMouse（切換說完自動送出，按下呼叫 toggleAutoSubmit，同 F10）啟用／切換／關閉滑鼠掛鉤（鍵盤熱鍵全部註冊失敗時仍會套用）；unregisterShortcut 時拆除
@@ -116,7 +113,7 @@
 ## src/store.js — 設定存儲與金鑰加密
 - 功能: 金鑰加密——以 Electron safeStorage（DPAPI）加密金鑰，加密值帶 safeStorage:v1: 前綴；不可用時 fallback 明文不崩潰（store.js:5-47）
 - 功能: BUILTIN_ROLES——5 個內建潤稿角色（口語轉書面 / 即時通訊 / 商務 Email / 會議記錄 / 程式技術），各含 persona prompt（store.js:50-71）
-- 功能: defaults——集中定義所有預設值（STT provider、語言、llmEnabled、輸入方式、熱鍵 F9、送出開關熱鍵 F10、開機啟動、tapAction、vadSilenceMs、listenIdleTimeoutSec、micButton、mouseTrigger、reviseMouseTrigger、submitToggleMouse）
+- 功能: defaults——集中定義所有預設值（STT provider、語言、llmEnabled、輸入方式、熱鍵 F9、送出開關熱鍵 F10、開機啟動、tapAction、vadSilenceMs、listenIdleTimeoutSec、mouseTrigger、reviseMouseTrigger、submitToggleMouse）
 - 功能: migrateRoles——首次/升級時建角色清單，並把舊 llmStyle/llmCustomPrompt（含 custom/concise/translate_en）遷移為角色（store.js:100-126）
 - 功能: getApiKey / setApiKey——讀寫單一金鑰欄位（自動解密/加密）（store.js:129-136）
 - 功能: getSettingsForRenderer / applySettings——回傳整份設定（金鑰解密供 UI）/ 批次寫入（金鑰自動加密）（store.js:139-153）
@@ -128,22 +125,10 @@
 - 功能: resolveIconPath——production 用 resourcesPath、開發用專案 assets 找圖示（tray.js:11-20）
 - 功能: STATE_TIP——各狀態（idle/recording/listening/processing/polishing/error）的 tooltip 文案（tray.js:22-28）
 - 功能: buildMenu——右鍵選單：設定 / 潤稿角色 radio 子選單（即時切換 activeRoleId）/ 結束（tray.js:31-55）
-- 功能: 右鍵選單另有兩個勾選項——「浮動麥克風鈕」（顯示 / 隱藏）與「說完自動送出」（等同 F10），供只用滑鼠操作
+- 功能: 右鍵選單另有勾選項「說完自動送出」（等同 F10），供只用滑鼠操作
 - 功能: createTray——建立系統匣、設 tooltip 與選單、左鍵點開設定（tray.js:62-80）
 - 功能: setTrayState / refreshTrayMenu——依流程狀態更新 tooltip / 重建選單（tray.js:57-60, 82-85）
 - 依賴: electron（Tray/Menu/nativeImage）、path、fs、./logger、./store
-
-## src/micbutton.js — 浮動麥克風鈕（主程序側）
-- 功能: createMicButton——56x56 無框透明、永遠置頂、focusable:false 的小視窗；點它不搶焦點，辨識結果照常貼進使用者原本的輸入位置
-- 功能: 位置——預設主螢幕右下角；拖曳後存入設定 micButtonPos，啟動時 clampToScreen 拉回可見範圍
-- 功能: dragStart / dragMove / dragEnd——依游標螢幕座標移動視窗（一律 setBounds 連同寬高，避免高 DPI 下越拖越大），放開時存位置
-- 功能: setMicButtonEnabled / isMicButtonEnabled——顯示 / 隱藏並寫入設定 micButton（系統匣選單用）
-- 功能: setMicState——'idle' | 'listening'（連續聽寫）| 'recording'（按住說話），由 shortcut.js 同步，後兩者鈕變紅並有脈動外圈
-- 依賴: electron（BrowserWindow / screen）、./store、./logger
-
-## src/micbutton.html + micbutton-preload.js — 浮動麥克風鈕 renderer 與橋接
-- 功能: 圓形麥克風鈕；pointer capture 自行判斷三種手勢——點擊（切換連續聽寫）、按住超過 300ms（按住說話，放開送出）、移動超過 5px（拖曳）；聽寫中按下一律當作結束
-- 功能: micApi——onState（主程序→鈕）、click、holdStart / holdEnd / holdCancel、dragStart / dragMove / dragEnd（鈕→主程序，IPC 通道 mic-state / mic-click / mic-hold / mic-drag）
 
 ## src/overlay.js — 狀態浮窗管理（主程序側）
 - 功能: createOverlayWindow——建無邊框、透明、不搶焦點（focusable:false）、skipTaskbar、置頂的 240x84 浮窗（overlay.js:10-36）
