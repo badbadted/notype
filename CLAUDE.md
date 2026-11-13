@@ -7,7 +7,8 @@ Windows AI 語音輸入工具。按住 F9 說話 → 雲端 Whisper STT → LLM 
 
 ## 技術決策
 - **框架**：Electron（系統匣常駐 + 設定頁）
-- **STT/LLM**：雲端 OpenAI / Groq（OpenAI 相容端點，stt.js / llm.js 各自合一）
+- **STT/LLM**：雲端 OpenAI / Groq（OpenAI 相容端點，stt.js / llm.js 各自合一）；Groq STT 用 `whisper-large-v3-turbo`
+- **辨識後處理**（0.1.23，參考 EasyType 的 WhisperKit＋OpenCC＋術語詞庫）：`src/api/textfix.js` 用 opencc-js 轉台灣繁體用語、套自訂詞庫；STT 結果與所有 LLM 輸出都過一次。詞庫同時塞進 Whisper prompt，回聲偵測要連詞庫片段一起比
 - **熱鍵**：`F9` 單鍵（`Alt+Space` 被 Windows 保留無法註冊）；`shortcut.js` 自我修復，註冊失敗自動退到 `CommandOrControl+Shift+Space` / `Alt+Z` / `F10` 並回寫設定
 - **鍵盤模擬 / 按鍵偵測**：統一用 `koffi`（純 JS FFI，免 Visual Studio 編譯）呼叫 `keybd_event` / `GetAsyncKeyState`
 - **連續聽寫**：輕按 F9（<300ms）切換；renderer 用 `@ricky0123/vad-web` 0.0.30 + `onnxruntime-web` 1.23.2（皆 devDependencies、版本鎖死）做 VAD 切句，每句 16kHz WAV 回送主程序，`segChain` 依序跑 STT→潤稿→貼上。VAD 資源由 `scripts/copy-vad-assets.js` 複製到 `src/vendor/vad/`（gitignore），prestart / prebuild 自動執行
@@ -43,6 +44,7 @@ Windows AI 語音輸入工具。按住 F9 說話 → 雲端 Whisper STT → LLM 
 - [ ] 滑鼠鍵切換「說完自動送出」（0.1.21）：設定頁「輸入方式」新增「滑鼠切換：說完自動送出」，按下同 F10；三個滑鼠鍵設定互斥（設定頁擋儲存，主程序依 語音輸入→改寫→切換送出 優先）。已通過 mousehook 三格/撞鍵 mock 測試 8 項、設定頁撞鍵提示與儲存 payload 瀏覽器測試；待使用者以真人滑鼠實測
 - [x] 移除浮動麥克風鈕（0.1.22）：使用者已改用 F9 與滑鼠側鍵，不再需要；刪 micbutton.*、系統匣開關與 micButton 設定，舊設定檔殘留的兩個鍵不會被讀取
 - [x] 浮窗自動回到最上層（0.1.18）：`keep-on-top.js` 讓狀態浮窗被蓋住後約 2 秒回到最上層。開發版自動測試通過；2026-10-21 使用者實測 Win+D、全螢幕影片退出、休眠喚醒後都會回來
+- [ ] 台灣繁體轉換＋自訂詞庫＋turbo 模型（0.1.23）：textfix 與 stt 請求 mock 測試 23 項通過、開發版設定頁存讀與截圖確認；待使用者真人講話比較辨識速度與用字
 - [x] Groq 潤稿模型換成 `openai/gpt-oss-120b`（0.1.16）：`llama-3.3-70b-versatile` 於 2026-08-16 下架後每次潤稿都回 404、退回原文。2026-10-21 使用者以真人語音確認潤稿品質 OK
 
 ## 驗證指令

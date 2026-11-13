@@ -2,6 +2,7 @@
 const fs = require('fs');
 const { getStore, getApiKey } = require('../store');
 const { log } = require('../logger');
+const { fixText, vocabPrompt, optsFromStore } = require('./textfix');
 
 const PROVIDERS = {
   openai: {
@@ -58,6 +59,8 @@ async function transcribe(audioFilePath, opts = {}) {
   if (!apiKey) throw new Error(`未設定 ${cfg.label} 的 API Key`);
 
   const language = store.get('language') || 'zh';
+  const fixOpts = optsFromStore(store);
+  const vPrompt = vocabPrompt(fixOpts.vocab); // 自訂詞庫：引導 Whisper 寫對專有名詞
 
   const audioData = fs.readFileSync(audioFilePath);
   // 空音訊/極短按（recorder 冷啟動競態會回送 0 byte）→ 不送 Whisper（會回吐 prompt 幻覺）
@@ -78,9 +81,10 @@ async function transcribe(audioFilePath, opts = {}) {
     form.append('language', language.split('-')[0]); // zh-TW → zh
   }
   // 中文/自動偵測時加引導 prompt 提升繁中與中英混雜品質
-  if (!language || language === 'auto' || language.startsWith('zh')) {
-    form.append('prompt', ZH_MIX_PROMPT);
-  }
+  // 自訂詞庫的引導片段不分語言都帶（英文術語在任何語言設定都可能出現）
+  const isZh = !language || language === 'auto' || language.startsWith('zh');
+  const prompt = (isZh ? ZH_MIX_PROMPT : '') + vPrompt;
+  if (prompt) form.append('prompt', prompt);
 
   log.info('[stt]', cfg.label, 'lang=', language);
   const controller = new AbortController();
@@ -117,11 +121,21 @@ async function transcribe(audioFilePath, opts = {}) {
     log.info('[stt] 偵測到 prompt 回聲，視為無語音：', text.slice(0, 30));
     return '';
   }
+  // 詞庫片段的回聲：輸出落在「常用詞：A、B、C」裡面，但又不是剛好某一個詞（只講一個詞是正常輸入）
+  const nVocab = normText(vPrompt);
+  if (nText && nVocab && nVocab.includes(nText)
+      && !fixOpts.vocab.terms.some((t) => normText(t).toLowerCase() === nText.toLowerCase())) {
+    log.info('[stt] 偵測到詞庫回聲，視為無語音：', text.slice(0, 30));
+    return '';
+  }
   if (isHallucination(text, opts.strictFilter === true)) {
     log.info('[stt] 偵測到 Whisper 幻覺輸出，視為無語音：', text.slice(0, 30));
     return '';
   }
-  return text;
+  // 轉台灣繁體用語＋套用詞庫替換（潤稿前先做，LLM 拿到的就是正確寫法）
+  const fixed = fixText(text, fixOpts);
+  if (fixed !== text) log.info('[stt] 後處理已調整用字');
+  return fixed;
 }
 
 module.exports = { transcribe, isHallucination, PROVIDERS };

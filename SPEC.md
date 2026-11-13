@@ -66,13 +66,24 @@
 - 依賴: electron contextBridge / ipcRenderer
 
 ## src/api/stt.js — 語音轉文字（雲端 Whisper）
-- 功能: PROVIDERS 定義——OpenAI（whisper-1）與 Groq（whisper-large-v3）的 URL/model/金鑰欄位/標籤（stt.js:6-19）
+- 功能: PROVIDERS 定義——OpenAI（whisper-1）與 Groq（whisper-large-v3-turbo，2026-11-13 由 large-v3 改用，較快）的 URL/model/金鑰欄位/標籤
 - 功能: 中英混雜引導 prompt（ZH_MIX_PROMPT）偏置輸出為繁中並保留英文術語（stt.js:22-23）
-- 功能: transcribe——讀暫存檔組 multipart FormData（file/model/response_format/temperature），依語言設定帶 language 與引導 prompt，POST 到對應端點（stt.js:27-79）
+- 功能: transcribe——讀暫存檔組 multipart FormData（file/model/response_format/temperature），依語言設定帶 language 與引導 prompt（中文時 ZH_MIX_PROMPT＋自訂詞庫「常用詞：…」片段，非中文只帶詞庫片段），POST 到對應端點
+- 功能: 回聲偵測——輸出落在 ZH_MIX_PROMPT 或詞庫片段內視為無語音；但輸出剛好等於某一個詞庫詞時當正常輸入
+- 功能: 回傳前經 textfix.fixText 轉台灣繁體用語＋套用詞庫替換
 - 功能: 依副檔名送 audio/wav（連續聽寫）或 audio/webm（按住說話）
 - 功能: isHallucination——整段結果等於 Whisper 常見幻覺字串（字幕志願者、明鏡點點等）時丟棄；strictFilter（連續聽寫）另過濾「謝謝觀看 / Thank you / 嗯」等短句
 - 功能: 30s 逾時——AbortController 逾時即丟逾時錯誤，避免浮窗永遠停在處理中（stt.js:25, 54-71）
-- 依賴: fs、../store（getStore/getApiKey）、../logger、全域 fetch/Blob/FormData
+- 依賴: fs、../store（getStore/getApiKey）、../logger、./textfix、全域 fetch/Blob/FormData
+
+## src/api/textfix.js — 辨識結果後處理（本機，不呼叫 API）
+- 功能: cn2tw——opencc-js `cn → twp`，簡體轉繁體並換台灣用語（軟件→軟體）；已是繁體的文字不變
+- 功能: shouldConvert——語言為 zh／auto 且文字不含日文假名才轉，避免改壞日文漢字
+- 功能: parseVocabulary——設定 `vocabulary` 一行一條：「正確詞」或「錯寫1, 錯寫2 = 正確詞」，# 開頭為註解
+- 功能: applyVocabulary——單次掃描替換（正確詞也對應到自己，避免重複套用）；英文詞不分大小寫且前後不可接英數字，順便修正大小寫（github→GitHub）
+- 功能: vocabPrompt——詞庫正確詞組成 Whisper 引導片段，約 150 字內
+- 功能: fixText／optsFromStore——STT 結果與 F9 潤稿、F8 選字潤稿、F7 改寫的 LLM 輸出都再過一次（設定 `twConvert` 關掉時只套詞庫）
+- 依賴: opencc-js（dependencies，cn2t 子集）
 
 ## src/api/llm.js — LLM 文字潤稿
 - 功能: PROVIDERS 定義——OpenAI（gpt-4o-mini）與 Groq（openai/gpt-oss-120b，附 reasoning_effort=low、include_reasoning=false；llama-3.3-70b-versatile 已於 2026-08-16 下架）chat/completions 端點（llm.js:5-16）
@@ -191,8 +202,8 @@
 1. 按住 F9（shortcut.js globalShortcut）→ startRec → 浮窗顯示錄音中 + 啟動隱藏視窗 MediaRecorder
 2. 放開 F9（GetAsyncKeyState 80ms 輪詢偵測）→ stopRec → 錄音視窗 onStop 回送音訊 buffer
 3. main.js 收 audio-data → handleAudioData → saveAudioBuffer 存暫存 webm
-4. stt.js transcribe → 雲端 Whisper 轉文字
-5. llm.js polishText → 雲端 LLM 依生效角色潤稿（fail-open）
+4. stt.js transcribe → 雲端 Whisper 轉文字（帶詞庫引導）→ textfix 轉台灣繁體＋詞庫替換
+5. llm.js polishText → 雲端 LLM 依生效角色潤稿（fail-open）→ 再過一次 textfix
 6. typer.js typeText（剪貼簿 + 模擬 Ctrl+V）貼進游標；autoSubmit 開啟時補按 Enter；或改為只複製到剪貼簿
 7. 全程由 overlay.js 浮窗 + tray.js tooltip 顯示狀態，結束後清本輪暫存檔
 

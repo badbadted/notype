@@ -106,6 +106,7 @@ select:focus, textarea:focus { outline: none; border-color: var(--ink); }
 .fld label { display: block; font-size: 12px; color: var(--t2); margin-bottom: 4px; }
 .fld input, .fld textarea { width: 100%; background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font-size: 12.5px; font-family: inherit; }
 .fld textarea { min-height: 64px; resize: vertical; line-height: 1.5; }
+#vocabulary { min-height: 120px; font-family: Consolas, "Microsoft JhengHei", monospace; }
 .fld input:focus, .fld textarea:focus { outline: none; border-color: var(--ink); }
 .ed-row { display: flex; gap: 8px; justify-content: flex-end; }
 

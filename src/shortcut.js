@@ -9,6 +9,9 @@ const { showOverlay, hideOverlay } = require('./overlay');
 const { setMouseTriggers, stopMouseHook } = require('./mousehook');
 const { transcribe } = require('./api/stt');
 const { polishText, reviseText, getActiveRole } = require('./api/llm');
+const { fixText, optsFromStore } = require('./api/textfix');
+// LLM 輸出也再過一次後處理：潤稿模型偶爾會吐簡體或把詞庫裡的專有名詞改掉
+const postFix = (text) => fixText(text, optsFromStore(getStore()));
 const { typeText, copyToClipboard, pressEnter, copySelection, paste, selectLeft, backupClipboard, restoreClipboard } = require('./typer');
 const { log } = require('./logger');
 
@@ -264,7 +267,7 @@ async function polishSelection() {
       return;
     }
     showOverlay('polishing', role ? role.name : '');
-    const out = await polishText(selected);
+    const out = postFix(await polishText(selected));
     clipboard.writeText(out);
     await paste(); // Ctrl+V 取代選取
     showOverlay('done', '已潤稿取代');
@@ -439,7 +442,7 @@ async function runInsertPipeline(audioBuffer, { ext = 'webm', continuous = false
     }
 
     showOverlay('polishing');
-    const finalText = await polishText(rawText);
+    const finalText = postFix(await polishText(rawText));
     let doneMsg;
 
     if (store.get('copyToClipboard') === true) {
@@ -669,7 +672,7 @@ async function handleReviseAudio(audioBuffer) {
 
     log.info('[revise] 指令=', instruction.slice(0, 30), '| 來源=', hasSelection ? '選取' : '剛輸入', '| 目標長=', target.length, '| reselect=', reselectLen);
     showOverlay('polishing', '套用修改');
-    const revised = await reviseText(target, instruction);
+    const revised = postFix(await reviseText(target, instruction));
     clipboard.writeText(revised);
     if (reselectLen > 0) await selectLeft(reselectLen); // 沒選取時，先選回剛輸入的文字
     await paste(); // Ctrl+V 取代

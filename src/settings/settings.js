@@ -13,6 +13,8 @@ async function load() {
 
   setSeg('sttSeg', s.sttProvider);
   $('language').value = s.language || 'zh';
+  setToggle('twConvert', s.twConvert !== false);
+  $('vocabulary').value = s.vocabulary || '';
   setToggle('llmEnabled', s.llmEnabled);
   setToggle('launchAtStartup', s.launchAtStartup);
   setToggle('autoSubmit', s.autoSubmit);
@@ -211,6 +213,7 @@ $('sttSeg').addEventListener('click', (e) => {
 });
 $('llmEnabled').addEventListener('click', function () { this.classList.toggle('on'); syncLlmDim(); });
 $('launchAtStartup').addEventListener('click', function () { this.classList.toggle('on'); });
+$('twConvert').addEventListener('click', function () { this.classList.toggle('on'); });
 $('autoSubmit').addEventListener('click', function () { this.classList.toggle('on'); });
 $('tapAction').addEventListener('change', syncTapDim);
 $('mouseTrigger').addEventListener('change', syncMouseConflict);
@@ -252,6 +255,8 @@ $('btnSave').addEventListener('click', async () => {
     openaiApiKey: s.openaiApiKey || '',
     groqApiKey: s.groqApiKey || '',
     language: $('language').value,
+    twConvert: $('twConvert').classList.contains('on'),
+    vocabulary: $('vocabulary').value,
     llmEnabled: $('llmEnabled').classList.contains('on'),
     roles,
     activeRoleId,

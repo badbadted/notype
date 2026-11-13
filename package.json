@@ -19,6 +19,7 @@
   "dependencies": {
     "electron-store": "^8.2.0",
     "koffi": "^2.15.6",
+    "opencc-js": "1.4.2",
     "pngjs": "^7.0.0"
   },
   "devDependencies": {

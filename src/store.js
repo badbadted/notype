@@ -77,6 +77,8 @@ const defaults = {
   openaiApiKey: '',
   groqApiKey: '',
   language: 'zh', // Whisper language hint；中英混雜時可留空讓其自動偵測
+  twConvert: true, // 辨識與潤稿結果用 OpenCC 轉台灣繁體與用語（語言為中文／自動偵測時才轉）
+  vocabulary: '', // 自訂詞庫：一行一條，「正確詞」或「錯寫1, 錯寫2 = 正確詞」
 
   // LLM 潤稿
   llmEnabled: true,
