@@ -73,7 +73,7 @@ const BUILTIN_ROLES = [
 // 預設設定 — 集中定義，UI 與流程共用，避免散落各處不一致
 const defaults = {
   // STT
-  sttProvider: 'groq', // 'openai' | 'groq'（groq 免費額度大、whisper-large-v3 對中文佳）
+  sttProvider: 'groq', // 'openai' | 'groq'（groq 免費額度大、whisper-large-v3-turbo 快且中文佳）
   openaiApiKey: '',
   groqApiKey: '',
   language: 'zh', // Whisper language hint；中英混雜時可留空讓其自動偵測

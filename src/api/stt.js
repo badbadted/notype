@@ -12,7 +12,8 @@ const PROVIDERS = {
   },
   groq: {
     url: 'https://api.groq.com/openai/v1/audio/transcriptions',
-    model: 'whisper-large-v3',
+    // turbo：速度明顯快於 large-v3，中文準確度只略降（2026-11-13 改用，參考 EasyType 本機也跑 turbo 級模型）
+    model: 'whisper-large-v3-turbo',
     keyField: 'groqApiKey',
     label: 'Groq Whisper',
   },
