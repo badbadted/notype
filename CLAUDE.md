@@ -27,6 +27,7 @@ Windows AI 語音輸入工具。按住 F9 說話 → 雲端 Whisper STT → LLM 
 9. 要用程式測 focusable:false 浮窗上的滑鼠操作，別用 SetCursorPos 模擬真實滑鼠：視窗在另一個螢幕（不同縮放）時座標對不上，會點到使用者畫面上別的東西。改用 `npx electron . --remote-debugging-port=9333` 啟動，再經 CDP 的 `Input.dispatchMouseEvent` 對該頁送事件
 10. 浮窗常被蓋到下面：Windows 不認 `setAlwaysOnTop` 的層級（`'screen-saver'` 只在 macOS 有效），所有置頂視窗同一層；`focusable:false` 的視窗不會被啟用，被壓下去就不會自己浮回來；Win+D、全螢幕退出、休眠喚醒還可能直接拿掉置頂屬性。統一由 `src/keep-on-top.js` 在浮窗顯示期間每 1.5 秒補設置頂＋`moveTop()`，螢幕變更／解鎖／喚醒時立即補設。新增浮窗一律呼叫 `keepOnTop(win)`
 11. 滑鼠側鍵觸發用 WH_MOUSE_LL 低階掛鉤，一定要放在 worker 執行緒（`src/mousehook-worker.js`）自己跑 GetMessageW 迴圈：全系統每次滑鼠移動都會經過回呼，放主程序執行緒，主程序一忙整台電腦的滑鼠就卡，回呼太慢 Windows 還會默默拆掉掛鉤。被吞掉的鍵 GetAsyncKeyState 讀不到，放開要靠掛鉤事件。worker 腳本打包時要 asarUnpack。測「有沒有吞掉」：先在另一個程序裝觀察用掛鉤（排在鏈尾）再開 NoType，被吞掉的點擊觀察者就收不到
+12. NoType 若由別的程式（終端機、Claude session、desk-xs 等）帶管線啟動，對方關掉後 `console.log` 會丟 EPIPE，舊版每次寫 log 就彈「EPIPE: broken pipe」錯誤窗。`logger.js` 已吞掉主控台寫入錯誤（log 檔照寫），`uncaughtException` 遇管線錯誤不彈窗（0.1.26）
 8. 「從別的視窗按按鈕來啟動聽寫」行不通：按鈕所在視窗會拿走焦點，Ctrl+V 就貼不到原本的輸入框。要用滑鼠啟動只能靠 `focusable:false` 的視窗（如狀態浮窗；浮動麥克風鈕 0.1.16～0.1.21 即採此做法，0.1.22 已移除）
 
 ## 進度

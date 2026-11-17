@@ -1,6 +1,6 @@
 const { app, BrowserWindow, dialog, ipcMain } = require('electron');
 const path = require('path');
-const { log } = require('./logger');
+const { log, isPipeError } = require('./logger');
 const { createTray, refreshTrayMenu } = require('./tray');
 const { getStore, getSettingsForRenderer, applySettings } = require('./store');
 const { createRecorderWindow, cleanupOrphanTempAudio } = require('./recorder');
@@ -18,6 +18,8 @@ app.commandLine.appendSwitch('disable-software-rasterizer');
 // 防無聲閃退：未捕捉例外寫 log + 彈窗
 process.on('uncaughtException', (err) => {
   log.error('[uncaughtException]', err);
+  // 主控台管線斷掉（啟動 NoType 的程式已關）不影響功能，不彈窗打擾
+  if (isPipeError(err)) return;
   try {
     dialog.showErrorBox('NoType 發生錯誤', `${err.message}\n\nlog: ${log.path()}`);
   } catch { /* 視窗系統未就緒時略過 */ }
