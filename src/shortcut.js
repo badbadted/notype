@@ -14,6 +14,7 @@ const { fixText, optsFromStore } = require('./api/textfix');
 const postFix = (text) => fixText(text, optsFromStore(getStore()));
 const { typeText, copyToClipboard, pressEnter, copySelection, paste, selectLeft, backupClipboard, restoreClipboard } = require('./typer');
 const { log } = require('./logger');
+const xsBridge = require('./xs-bridge');
 
 const user32 = koffi.load('user32.dll');
 const GetAsyncKeyState = user32.func('short __stdcall GetAsyncKeyState(int vKey)');
@@ -38,7 +39,7 @@ let keyPollTimer = null;
 let pollVks = [0x78]; // 目前錄音熱鍵的輪詢鍵（由 startRec/startReviseRec 設定）
 let mainVks = [0x78]; // 語音輸入主熱鍵（F9）的 VK
 let reviseVks = [0x76]; // 語音改寫熱鍵（F7）的 VK
-let captureMode = 'insert'; // 'insert'=語音輸入；'revise'=語音改寫（依指令改寫選取文字）
+let captureMode = 'insert'; // 'insert'=語音輸入；'revise'=語音改寫（依指令改寫選取文字）；'xs'=小帥格（交給桌面小帥）
 let reviseSelectionPromise = null; // 改寫模式：按下時複製選取文字的 Promise
 let reviseBackup = null; // 改寫模式：使用者原剪貼簿備份
 // 記住「上一段剛用 F9 輸入的文字」，讓 F7 不必手動選字就能改寫剛講的內容。
@@ -156,6 +157,73 @@ function onMouseTriggerUp() {
   if (isRecording) finishHoldOrTap();
 }
 
+// ── 小帥格（0.1.25）：滾輪中鍵按住說話、放開把整段辨識文字交給桌面小帥 ─────────
+// 不潤稿、不貼上、不做串流；回話由 Mac mini 的 Luna 決定、客廳喇叭念。桌寵負責顯示狀態，NoType 浮窗只在出錯時出現。
+let xsHolding = false;
+let xsPressedAt = 0;
+function xsBusyMsg() {
+  if (isListening) return `連續聽寫中，請先按 ${hotkeyLabel()} 結束`;
+  if (isRecording || isProcessing) return '處理中，請稍候';
+  return null;
+}
+function onXsDown() {
+  const busy = xsBusyMsg();
+  if (busy) { showOverlay('error', busy); hideOverlay(1500); return; }
+  if (!readyForMouse()) return;
+  xsHolding = true;
+  xsPressedAt = Date.now();
+  captureMode = 'xs';
+  isRecording = true;
+  startRecording();
+  log.info('[xs] 中鍵按下 → 小帥在聽');
+  xsBridge.sendState('listening').then((r) => {
+    if (!r.ok && xsHolding) { // desk-xs 沒開：浮窗提示，照樣錄（放開後送不出去會再提示）
+      showOverlay('error', `${r.error || '桌面小帥沒有回應'}`);
+    }
+  });
+}
+function onXsUp() {
+  if (!xsHolding) return;
+  xsHolding = false;
+  if (!isRecording || captureMode !== 'xs') return;
+  if (Date.now() - xsPressedAt < TAP_MS) { // 輕按：第一版不做連續對話，當作取消
+    isRecording = false;
+    cancelRecording();
+    captureMode = 'insert';
+    xsBridge.sendState('cancel', '按住滑鼠中鍵說話，說完放開');
+    log.info('[xs] 輕按中鍵，取消');
+    return;
+  }
+  stopRec(); // → handleAudioData → handleXsAudio
+}
+
+async function handleXsAudio(audioBuffer) {
+  captureMode = 'insert';
+  if (!audioBuffer || audioBuffer.byteLength === 0 || audioBuffer.length === 0) {
+    xsBridge.sendState('cancel', '沒有聽到聲音');
+    return;
+  }
+  if (isProcessing) { xsBridge.sendState('error', '上一句還在處理'); return; }
+  setProcessing(true);
+  let audioPath;
+  try {
+    audioPath = saveAudioBuffer(audioBuffer);
+    xsBridge.sendState('transcribing');
+    const t0 = Date.now();
+    const text = (await transcribe(audioPath)).trim();
+    log.info('[xs] 辨識完成', Date.now() - t0, 'ms 長度', text.length);
+    if (!text) { xsBridge.sendState('cancel', '沒有聽到聲音'); return; }
+    const r = await xsBridge.sendText(text);
+    if (!r.ok) { showOverlay('error', r.error || '送不到桌面小帥'); hideOverlay(3000); }
+  } catch (err) {
+    log.error('[xs] 失敗', err);
+    xsBridge.sendState('error', err && err.message ? err.message.slice(0, 60) : '辨識失敗');
+  } finally {
+    if (audioPath) cleanupTempAudio(audioPath);
+    setProcessing(false);
+  }
+}
+
 function waitForRelease(vks) {
   if (waitReleaseTimer) clearInterval(waitReleaseTimer);
   waitReleaseTimer = setInterval(() => {
@@ -199,16 +267,24 @@ function registerShortcut() {
 
 function applyMouseTrigger() {
   const store = getStore();
+  const xsOn = store.get('xsMiddle') === true;
+  // 小帥格開著：中鍵固定給小帥，其他格就算設定檔殘留中鍵也當不使用（設定頁已標「小帥使用」不可選）
+  const pick = (key) => {
+    const v = store.get(key) || 'off';
+    return xsOn && v === 'middle' ? 'off' : v;
+  };
   setMouseTriggers(
     {
-      insert: store.get('mouseTrigger') || 'off',
-      revise: store.get('reviseMouseTrigger') || 'off',
-      submitToggle: store.get('submitToggleMouse') || 'off',
+      insert: pick('mouseTrigger'),
+      revise: pick('reviseMouseTrigger'),
+      submitToggle: pick('submitToggleMouse'),
+      xiaoshuai: xsOn ? 'middle' : 'off',
     },
     {
       insert: { onDown: onMouseTriggerDown, onUp: onMouseTriggerUp },
       revise: { onDown: onReviseMouseDown, onUp: onReviseMouseUp },
       submitToggle: { onDown: toggleAutoSubmit, onUp: () => {} }, // 同 F10：按一下切換，放開不做事
+      xiaoshuai: { onDown: onXsDown, onUp: onXsUp },
     },
   );
 }
@@ -403,6 +479,8 @@ async function handleAudioData(audioBuffer) {
     captureMode = 'insert';
     return handleReviseAudio(audioBuffer);
   }
+  // 小帥格 → 只轉文字交給桌面小帥
+  if (captureMode === 'xs') return handleXsAudio(audioBuffer);
 
   // 空音訊（短按未真正錄到聲音 / 冷啟動競態收尾）→ 直接收尾，不送 STT，也不佔用 processing 旗標
   if (!audioBuffer || audioBuffer.byteLength === 0 || audioBuffer.length === 0) {

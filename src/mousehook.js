@@ -1,5 +1,5 @@
 // 滑鼠觸發鍵（主程序）— 管理 mousehook-worker 執行緒，把側鍵 / 中鍵的按下、放開轉成事件。
-// 三個用途各自一顆鍵：語音輸入（同 F9）、語音改寫（同 F7）、切換說完自動送出（同 F10）。
+// 四個用途各自一顆鍵：語音輸入（同 F9）、語音改寫（同 F7）、切換說完自動送出（同 F10）、小帥（0.1.25，固定滾輪中鍵，交給桌面小帥）。
 // 全都沒選時完全不裝掛鉤；有選才啟動 worker，改選別顆鍵只改共用記憶體，不重開。
 const path = require('path');
 const { Worker } = require('worker_threads');
@@ -12,14 +12,14 @@ const WM_QUIT = 0x0012;
 const user32 = koffi.load('user32.dll');
 const PostThreadMessageW = user32.func('bool __stdcall PostThreadMessageW(uint32 threadId, uint32 msg, uintptr_t wParam, intptr_t lParam)');
 
-const ACTIONS = ['insert', 'revise', 'submitToggle']; // 共用記憶體格子順序 = 撞鍵時的優先順序
-const shared = new SharedArrayBuffer(4 * ACTIONS.length); // [0]=語音輸入、[1]=語音改寫、[2]=切換自動送出
+const ACTIONS = ['insert', 'revise', 'submitToggle', 'xiaoshuai']; // 共用記憶體格子順序 = 撞鍵時的優先順序（小帥格開啟時，shortcut.js 先把其他格的中鍵清掉）
+const shared = new SharedArrayBuffer(4 * ACTIONS.length); // [0]=語音輸入、[1]=語音改寫、[2]=切換自動送出、[3]=小帥
 const config = new Int32Array(shared);
 let worker = null;
 let workerThreadId = 0;
-// handlers: { insert | revise | submitToggle: { onDown, onUp } }
+// handlers: { insert | revise | submitToggle | xiaoshuai: { onDown, onUp } }
 const noop = { onDown: () => {}, onUp: () => {} };
-let handlers = { insert: noop, revise: noop, submitToggle: noop };
+let handlers = { insert: noop, revise: noop, submitToggle: noop, xiaoshuai: noop };
 
 function workerScriptPath() {
   // 打包後 worker 腳本由 asarUnpack 解出（Worker 無法直接從 app.asar 載入檔案）
@@ -57,7 +57,7 @@ function stopWorker() {
   setTimeout(() => { w.terminate().catch(() => {}); }, 500); // 保險：沒正常結束就強制收掉
 }
 
-// triggers: { insert, revise, submitToggle }，值為 'off' | 'x1' | 'x2' | 'middle'
+// triggers: { insert, revise, submitToggle, xiaoshuai }，值為 'off' | 'x1' | 'x2' | 'middle'
 // 撞鍵時依 ACTIONS 順序，前面的優先、後面的視為不使用（設定頁會擋，這裡是保險）
 function setMouseTriggers(triggers, nextHandlers) {
   if (nextHandlers) handlers = Object.fromEntries(ACTIONS.map((a) => [a, nextHandlers[a] || noop]));

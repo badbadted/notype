@@ -26,6 +26,8 @@ async function load() {
   setSelect('mouseTrigger', s.mouseTrigger, 'off');
   setSelect('reviseMouseTrigger', s.reviseMouseTrigger, 'off');
   setSelect('submitToggleMouse', s.submitToggleMouse, 'off');
+  setToggle('xsMiddle', s.xsMiddle === true);
+  syncXsMiddle();
   syncMouseConflict();
   syncKbdDim();
   syncTapDim();
@@ -99,6 +101,20 @@ function syncMouseConflict() {
     $(box).textContent = c && c.box === box ? c.msg : '';
   }
   return c;
+}
+// 小帥格開著：三個下拉的「滾輪中鍵」改標「小帥使用」且不能選；已選中鍵的改回不使用
+function syncXsMiddle() {
+  const on = $('xsMiddle').classList.contains('on');
+  for (const [id] of MOUSE_SELECTS) {
+    const sel = $(id);
+    const opt = [...sel.options].find((o) => o.value === 'middle');
+    if (!opt) continue;
+    opt.disabled = on;
+    opt.textContent = on ? '滾輪中鍵（小帥使用）' : (opt.dataset.label || '滾輪中鍵');
+    if (on && sel.value === 'middle') sel.value = 'off';
+  }
+  syncMouseConflict();
+  syncKbdDim();
 }
 // 鍵盤熱鍵關閉：F 鍵說明列變淡、F10 提示隱藏；且必須設語音輸入的滑鼠鍵，否則沒有任何方式能開始說話
 function syncKbdDim() {
@@ -227,6 +243,7 @@ $('launchAtStartup').addEventListener('click', function () { this.classList.togg
 $('twConvert').addEventListener('click', function () { this.classList.toggle('on'); });
 $('autoSubmit').addEventListener('click', function () { this.classList.toggle('on'); });
 $('keyboardHotkeys').addEventListener('click', function () { this.classList.toggle('on'); syncKbdDim(); });
+$('xsMiddle').addEventListener('click', function () { this.classList.toggle('on'); syncXsMiddle(); });
 $('mouseTrigger').addEventListener('change', syncKbdDim);
 $('tapAction').addEventListener('change', syncTapDim);
 $('mouseTrigger').addEventListener('change', syncMouseConflict);
@@ -284,6 +301,7 @@ $('btnSave').addEventListener('click', async () => {
     mouseTrigger: $('mouseTrigger').value,
     reviseMouseTrigger: $('reviseMouseTrigger').value,
     submitToggleMouse: $('submitToggleMouse').value,
+    xsMiddle: $('xsMiddle').classList.contains('on'),
   };
   await window.notype.saveSettings(payload);
   s = { ...s, ...payload };

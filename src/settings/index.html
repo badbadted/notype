@@ -90,7 +90,7 @@
           <option value="off">不使用</option>
           <option value="x1">側鍵：上一頁</option>
           <option value="x2">側鍵：下一頁</option>
-          <option value="middle">滾輪中鍵</option>
+          <option value="middle" data-label="滾輪中鍵">滾輪中鍵</option>
         </select>
       </div>
       <div class="status bad" id="submitMouseConflict"></div>
@@ -109,12 +109,16 @@
         <span>按住 <span class="kbd" id="hotkeyKbd">F9</span> 說話</span>
       </div>
       <div class="row">
+        <span class="lbl">滾輪中鍵：小帥<small>開啟後按住中鍵跟家裡的小帥說話，放開送出；回話由客廳喇叭念。需要先開「桌面小帥」。開著時中鍵原本的功能（瀏覽器開新分頁）會暫停，下面三個選項也不能再選中鍵</small></span>
+        <div class="tg" id="xsMiddle"></div>
+      </div>
+      <div class="row">
         <span class="lbl">滑鼠觸發：語音輸入<small>跟 F9 一樣：按住說話、輕按連續聽寫。「上一頁」通常是靠手腕那顆；選中的鍵原本的功能會暫停</small></span>
         <select id="mouseTrigger">
           <option value="off">不使用</option>
           <option value="x1">側鍵：上一頁</option>
           <option value="x2">側鍵：下一頁</option>
-          <option value="middle">滾輪中鍵</option>
+          <option value="middle" data-label="滾輪中鍵">滾輪中鍵</option>
         </select>
       </div>
       <div class="row">
@@ -123,7 +127,7 @@
           <option value="off">不使用</option>
           <option value="x1">側鍵：上一頁</option>
           <option value="x2">側鍵：下一頁</option>
-          <option value="middle">滾輪中鍵</option>
+          <option value="middle" data-label="滾輪中鍵">滾輪中鍵</option>
         </select>
       </div>
       <div class="status bad" id="mouseConflict"></div>

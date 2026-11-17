@@ -108,6 +108,9 @@ const defaults = {
   mouseTrigger: 'off',
   reviseMouseTrigger: 'off', // 語音改寫的滑鼠觸發鍵（行為同按住 F7），值同 mouseTrigger；兩者同一顆時改寫不生效
   submitToggleMouse: 'off', // 切換「說完自動送出」的滑鼠鍵（行為同 F10），值同 mouseTrigger；與上面兩個同一顆時不生效
+  // 小帥格（0.1.25）：開啟後滾輪中鍵固定給桌面小帥——按住說話、放開把整段辨識文字交給 desk-xs（不潤稿、不貼上）。
+  // 預設關；開著時上面三格不能選中鍵（設定頁標「小帥使用」，主程序也會清掉）
+  xsMiddle: false,
 };
 
 // 首次（或舊版升級）建立角色清單，並把舊的 llmStyle / llmCustomPrompt 遷移為角色

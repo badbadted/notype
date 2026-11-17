@@ -38,6 +38,8 @@
 - 功能: beginInsertRec / finishHoldOrTap——F9、滑鼠觸發鍵共用的「開始錄音」與「放開時判斷輕按或按住」
 - 功能: onMouseTriggerDown / onMouseTriggerUp——滑鼠觸發鍵（側鍵／中鍵）入口，行為同 F9：按住說話、輕按連續聽寫、聽寫中按下＝結束（對應的放開忽略）；放開由掛鉤事件通知，不輪詢
 - 功能: onReviseMouseDown / onReviseMouseUp——語音改寫的滑鼠觸發鍵入口，行為同按住 F7；startReviseRec(fromMouse=true) 不輪詢鍵盤，放開由掛鉤事件通知
+- 功能: onXsDown / onXsUp / handleXsAudio（0.1.25 小帥格）——`xsMiddle=true` 時滾輪中鍵固定給桌面小帥：按下開始錄音（captureMode='xs'）並送 desk-xs「listening」；放開不到 TAP_MS 當取消（送「cancel」）；否則停錄 → STT（不潤稿、不貼上）→ 整段文字經 xs-bridge 交給 desk-xs。正在聽寫／處理中按下只顯示浮窗提示。desk-xs 沒開時浮窗顯示「桌面小帥沒有開」
+- 功能: applyMouseTrigger——小帥格開著時其他三格就算設定檔殘留中鍵也當不使用，第四格 xiaoshuai=middle
 - 功能: applyMouseTrigger——registerShortcut 時依設定 mouseTrigger（語音輸入）、reviseMouseTrigger（語音改寫）與 submitToggleMouse（切換說完自動送出，按下呼叫 toggleAutoSubmit，同 F10）啟用／切換／關閉滑鼠掛鉤（鍵盤熱鍵全部註冊失敗時仍會套用）；unregisterShortcut 時拆除
 
 ## src/recorder.js — 錄音模組（主程序側）
@@ -104,15 +106,19 @@
 - 功能: pressEnter——模擬按一下 Enter（聊天視窗自動送出用）（typer.js:145-150）
 - 依賴: electron clipboard、koffi、./logger
 
+## src/xs-bridge.js — 交給桌面小帥（0.1.25）
+- 功能: sendState(state, text?)／sendText(text)——POST 到 desk-xs 本機橋接 127.0.0.1:18961 的 /xs/state、/xs/text，帶 `x-bridge-token`（每次送前重讀 %APPDATA%\desk-xs\bridge-token，desk-xs 每次啟動重產）；連不上回 { ok:false, error:'桌面小帥沒有開' }
+- 依賴: http、fs、./logger
+
 ## src/mousehook.js — 滑鼠觸發鍵（主程序側）
-- 功能: setMouseTriggers——{ insert, revise, submitToggle } 各為 'off' | 'x1'（側鍵上一頁）| 'x2'（側鍵下一頁）| 'middle'（滾輪中鍵）；撞鍵時依 insert → revise → submitToggle 順序前者優先、後者停用；有選才啟動 worker，改選別顆只寫共用記憶體（SharedArrayBuffer 三格），都不選則結束 worker
+- 功能: setMouseTriggers——{ insert, revise, submitToggle, xiaoshuai } 各為 'off' | 'x1'（側鍵上一頁）| 'x2'（側鍵下一頁）| 'middle'（滾輪中鍵）；撞鍵時依 insert → revise → submitToggle 順序前者優先、後者停用；有選才啟動 worker，改選別顆只寫共用記憶體（SharedArrayBuffer 四格），都不選則結束 worker
 - 功能: stopWorker——PostThreadMessageW(WM_QUIT) 讓 worker 的訊息迴圈結束並拆掉掛鉤，500ms 後 terminate 保險
 - 功能: workerScriptPath——打包後改指向 app.asar.unpacked（package.json asarUnpack 解出 worker 腳本）
 - 依賴: worker_threads、koffi、./logger
 
 ## src/mousehook-worker.js — 滑鼠觸發鍵（worker 執行緒）
 - 功能: 安裝 WH_MOUSE_LL 低階滑鼠掛鉤並跑 GetMessageW 迴圈；放 worker 是因為全系統每次滑鼠移動都會經過回呼，放主程序執行緒會在主程序忙時讓整台電腦的滑鼠卡住
-- 功能: 回呼只處理 X 鍵／中鍵事件：符合共用記憶體裡任一格的觸發鍵 → 通知主程序 down/up（附 action: insert / revise / submitToggle）並回傳 1 吞掉（瀏覽器不會跳上一頁）；其餘一律 CallNextHookEx 放行。不排除模擬點擊（AutoHotkey／X-Mouse 改鍵送來的就是模擬事件）
+- 功能: 回呼只處理 X 鍵／中鍵事件：符合共用記憶體裡任一格的觸發鍵 → 通知主程序 down/up（附 action: insert / revise / submitToggle / xiaoshuai）並回傳 1 吞掉（瀏覽器不會跳上一頁）；其餘一律 CallNextHookEx 放行。不排除模擬點擊（AutoHotkey／X-Mouse 改鍵送來的就是模擬事件）
 - 依賴: worker_threads、koffi（路徑由 workerData 傳入）
 
 ## src/keep-on-top.js — 浮窗置頂守護
@@ -166,6 +172,7 @@
 - 功能: syncKbdDim——「鍵盤熱鍵」開關關閉時淡化 F9／F8／F7 說明列、隱藏 F10 提示；關閉且「滑鼠觸發：語音輸入」為不使用時顯示警告並擋下儲存
 - 功能: 測試 API Key——呼叫主程序驗證並顯示結果狀態（settings.js:168-184）
 - 功能: 滑鼠鍵三個下拉選單（語音輸入 mouseTrigger／語音改寫 reviseMouseTrigger 在「一般」；切換自動送出 submitToggleMouse 在「輸入方式」的 autoSubmit 列下方，只複製模式時一併淡化）；任兩個選到同一顆時在相關那一列下方提示並擋下儲存
+- 功能: 小帥格開關（xsMiddle，0.1.25，預設關）——開著時三個下拉的「滾輪中鍵」改標「滾輪中鍵（小帥使用）」並停用，已選中鍵的改回不使用
 - 功能: 連續聽寫設定——輕按行為（tapAction）、停頓判定（vadSilenceMs）、閒置自動結束（listenIdleTimeoutSec）；tapAction=off 時淡化後兩項；setSelect 補上設定檔中不在選項內的值
 - 功能: 儲存——組 payload（含 roles/activeRoleId/各設定）寫回主程序並閃示已儲存提示（settings.js:186-206）
 - 依賴: window.notype（settings/preload.js 注入）、設定頁 DOM
