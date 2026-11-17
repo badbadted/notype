@@ -2,7 +2,7 @@ const { Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { log } = require('./logger');
-const { getStore } = require('./store');
+const { getStore, triggerLabel } = require('./store');
 
 let tray = null;
 let _opts = {}; // 保存 onSettings / onQuit，供 menu 重建使用
@@ -19,14 +19,19 @@ function resolveIconPath(name) {
   return null;
 }
 
-const STATE_TIP = {
-  idle: 'NoType — 待命（按住 F9 說話，輕按 F9 連續聽寫）',
-  recording: 'NoType — 錄音中…',
-  listening: 'NoType — 連續聽寫中（再按 F9 結束）',
-  processing: 'NoType — 辨識中…',
-  polishing: 'NoType — 潤稿中…',
-  error: 'NoType — 發生錯誤',
-};
+// 觸發鍵名稱跟著設定走（鍵盤熱鍵關閉時顯示滑鼠鍵）
+function stateTip(state) {
+  const k = triggerLabel(getStore());
+  const tips = {
+    idle: `NoType — 待命（按住 ${k} 說話，輕按 ${k} 連續聽寫）`,
+    recording: 'NoType — 錄音中…',
+    listening: `NoType — 連續聽寫中（再按 ${k} 結束）`,
+    processing: 'NoType — 辨識中…',
+    polishing: 'NoType — 潤稿中…',
+    error: 'NoType — 發生錯誤',
+  };
+  return tips[state] || tips.idle;
+}
 
 // 建立 / 重建右鍵選單（含潤稿角色子選單）
 function buildMenu() {
@@ -75,7 +80,7 @@ function createTray({ onSettings, onQuit }) {
     if (image.isEmpty()) log.warn('[tray] icon 為空，使用 Electron 預設空圖示');
 
     tray = new Tray(image);
-    tray.setToolTip(STATE_TIP.idle);
+    tray.setToolTip(stateTip('idle'));
     tray.setContextMenu(buildMenu());
     tray.on('click', () => _opts.onSettings && _opts.onSettings());
 
@@ -89,7 +94,7 @@ function createTray({ onSettings, onQuit }) {
 
 function setTrayState(state) {
   if (!tray) return;
-  tray.setToolTip(STATE_TIP[state] || STATE_TIP.idle);
+  tray.setToolTip(stateTip(state));
 }
 
 module.exports = { createTray, setTrayState, refreshTrayMenu };

@@ -94,6 +94,8 @@ const defaults = {
 
   // 系統
   hotkey: 'F9', // Alt+Space 被 Windows 保留無法註冊，預設改 F9 單鍵按住說話
+  // false=完全不註冊鍵盤熱鍵（F9／F8／F7／F10 與其自我修復候選鍵都不搶），只用滑鼠觸發鍵；把鍵盤讓給其他程式
+  keyboardHotkeys: true,
   // 輕按 F9 的行為：'continuous'=連續聽寫（再按一次結束）；'single'=說完一句自動結束；'off'=停用（短按照舊當作錄音）
   tapAction: 'continuous',
   vadSilenceMs: 1200, // 連續聽寫：停頓多久（ms）算一句結束
@@ -192,8 +194,19 @@ function getStore() {
   return _store;
 }
 
+const MOUSE_LABELS = { x1: '側鍵（上一頁）', x2: '側鍵（下一頁）', middle: '滾輪中鍵' };
+
+// 浮窗與系統匣提示用的「觸發鍵」名稱：鍵盤熱鍵關閉時改顯示語音輸入的滑鼠鍵
+function triggerLabel(store) {
+  if (store.get('keyboardHotkeys') === false) {
+    return MOUSE_LABELS[store.get('mouseTrigger')] || '滑鼠觸發鍵';
+  }
+  return (store.get('hotkey') || 'F9').replace(/CommandOrControl|Control/gi, 'Ctrl');
+}
+
 module.exports = {
   getStore,
+  triggerLabel,
   defaults,
   BUILTIN_ROLES,
   getApiKey,

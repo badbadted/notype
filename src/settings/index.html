@@ -81,7 +81,7 @@
       <div class="opt" data-v="false" id="optType"><span class="dot"></span><span class="lbl">自動貼上到游標位置</span></div>
       <div class="opt" data-v="true" id="optCopy"><span class="dot"></span><span class="lbl">只複製到剪貼簿（手動貼上）</span></div>
       <div class="row" id="autoSubmitRow">
-        <span class="lbl">說完自動送出<small>貼上後自動按 Enter；按 <span id="submitHk" class="kbd">F10</span> 可快速開關</small></span>
+        <span class="lbl">說完自動送出<small>貼上後自動按 Enter<span id="submitHkHint">；按 <span id="submitHk" class="kbd">F10</span> 可快速開關</span></small></span>
         <div class="tg" id="autoSubmit"></div>
       </div>
       <div class="row" id="submitToggleMouseRow">
@@ -100,6 +100,11 @@
     <div class="card">
       <h3>⚙️ 一般</h3>
       <div class="row">
+        <span class="lbl">鍵盤熱鍵<small>關掉後 F9／F8／F7／F10 都不註冊、讓給其他程式，只用下面的滑鼠鍵觸發</small></span>
+        <div class="tg" id="keyboardHotkeys"></div>
+      </div>
+      <div class="status bad" id="triggerWarn"></div>
+      <div class="row kbdRow">
         <span class="lbl">語音輸入快捷鍵<small>按住說話，放開自動辨識</small></span>
         <span>按住 <span class="kbd" id="hotkeyKbd">F9</span> 說話</span>
       </div>
@@ -152,11 +157,11 @@
           <option value="0">不自動結束</option>
         </select>
       </div>
-      <div class="row">
+      <div class="row kbdRow">
         <span class="lbl">選字潤稿<small>在任何 App 選取文字後按此鍵，AI 依目前角色潤稿並就地取代</small></span>
         <span>按 <span class="kbd" id="polishHk">F8</span></span>
       </div>
-      <div class="row">
+      <div class="row kbdRow">
         <span class="lbl">語音改寫<small>選取文字後，按住此鍵說出修改指令，AI 依指令改寫並取代</small></span>
         <span>按住 <span class="kbd" id="reviseHk">F7</span></span>
       </div>

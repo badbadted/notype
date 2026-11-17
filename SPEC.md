@@ -20,7 +20,7 @@
 ## src/shortcut.js — 全域熱鍵 + 錄音流程主控
 - 功能: koffi 載入 user32.dll、宣告 GetAsyncKeyState 用於輪詢按鍵放開（shortcut.js:12-20）
 - 功能: acceleratorToVks——把 Electron accelerator 字串（F9 / Control+Shift+Space）解析為 VK 碼陣列（shortcut.js:23-36）
-- 功能: registerShortcut 自我修復——設定熱鍵註冊失敗時依 FALLBACKS（F9 / Ctrl+Shift+Space / Alt+Z / F10）逐一退避並回寫設定（shortcut.js:40-69）
+- 功能: registerShortcut 自我修復——設定熱鍵註冊失敗時依 FALLBACKS（F9 / Ctrl+Shift+Space / Alt+Z / F10）逐一退避並回寫設定（shortcut.js:40-69）；設定 `keyboardHotkeys=false` 時一個鍵盤熱鍵都不註冊、不跑自我修復，只套用滑鼠觸發鍵
 - 功能: registerSubmitToggleHotkey——另註冊「說完自動送出」開關熱鍵（預設 F10，含自我修復）（shortcut.js:72-88）
 - 功能: toggleAutoSubmit——切換 autoSubmit 開/關並以浮窗閃示狀態（shortcut.js:91-99）
 - 功能: startRec——無金鑰時提示去設定；否則設旗標、浮窗顯示生效潤稿角色、啟動錄音，並每 80ms 輪詢任一熱鍵放開即停止（shortcut.js:101-123）
@@ -124,7 +124,8 @@
 ## src/store.js — 設定存儲與金鑰加密
 - 功能: 金鑰加密——以 Electron safeStorage（DPAPI）加密金鑰，加密值帶 safeStorage:v1: 前綴；不可用時 fallback 明文不崩潰（store.js:5-47）
 - 功能: BUILTIN_ROLES——5 個內建潤稿角色（口語轉書面 / 即時通訊 / 商務 Email / 會議記錄 / 程式技術），各含 persona prompt（store.js:50-71）
-- 功能: defaults——集中定義所有預設值（STT provider、語言、llmEnabled、輸入方式、熱鍵 F9、送出開關熱鍵 F10、開機啟動、tapAction、vadSilenceMs、listenIdleTimeoutSec、mouseTrigger、reviseMouseTrigger、submitToggleMouse）
+- 功能: defaults——集中定義所有預設值（STT provider、語言、llmEnabled、輸入方式、熱鍵 F9、送出開關熱鍵 F10、開機啟動、tapAction、vadSilenceMs、listenIdleTimeoutSec、mouseTrigger、reviseMouseTrigger、submitToggleMouse、keyboardHotkeys）
+- 功能: triggerLabel——浮窗與系統匣顯示的觸發鍵名稱；鍵盤熱鍵關閉時改顯示語音輸入的滑鼠鍵（側鍵（上一頁）／側鍵（下一頁）／滾輪中鍵）
 - 功能: migrateRoles——首次/升級時建角色清單，並把舊 llmStyle/llmCustomPrompt（含 custom/concise/translate_en）遷移為角色（store.js:100-126）
 - 功能: getApiKey / setApiKey——讀寫單一金鑰欄位（自動解密/加密）（store.js:129-136）
 - 功能: getSettingsForRenderer / applySettings——回傳整份設定（金鑰解密供 UI）/ 批次寫入（金鑰自動加密）（store.js:139-153）
@@ -134,7 +135,7 @@
 
 ## src/tray.js — 系統匣
 - 功能: resolveIconPath——production 用 resourcesPath、開發用專案 assets 找圖示（tray.js:11-20）
-- 功能: STATE_TIP——各狀態（idle/recording/listening/processing/polishing/error）的 tooltip 文案（tray.js:22-28）
+- 功能: stateTip——各狀態（idle/recording/listening/processing/polishing/error）的 tooltip 文案，觸發鍵名稱由 triggerLabel 決定
 - 功能: buildMenu——右鍵選單：設定 / 潤稿角色 radio 子選單（即時切換 activeRoleId）/ 結束（tray.js:31-55）
 - 功能: 右鍵選單另有勾選項「說完自動送出」（等同 F10），供只用滑鼠操作
 - 功能: createTray——建立系統匣、設 tooltip 與選單、左鍵點開設定（tray.js:62-80）
@@ -162,6 +163,7 @@
 - 功能: UI helper——segment 選擇器、toggle、輸入方式 radio（複製 vs 貼上）、依狀態淡化 LLM 區與 autoSubmit 列、未填金鑰橫幅（settings.js:37-73）
 - 功能: 角色管理——渲染清單、選取/刪除（至少留 1 個）、開/關編輯器、新增/編輯角色（名稱/prompt/per-role model）（settings.js:75-147）
 - 功能: 事件綁定——STT provider 切換連動金鑰欄、各 toggle、輸入方式切換、金鑰輸入即時同步（settings.js:149-166）
+- 功能: syncKbdDim——「鍵盤熱鍵」開關關閉時淡化 F9／F8／F7 說明列、隱藏 F10 提示；關閉且「滑鼠觸發：語音輸入」為不使用時顯示警告並擋下儲存
 - 功能: 測試 API Key——呼叫主程序驗證並顯示結果狀態（settings.js:168-184）
 - 功能: 滑鼠鍵三個下拉選單（語音輸入 mouseTrigger／語音改寫 reviseMouseTrigger 在「一般」；切換自動送出 submitToggleMouse 在「輸入方式」的 autoSubmit 列下方，只複製模式時一併淡化）；任兩個選到同一顆時在相關那一列下方提示並擋下儲存
 - 功能: 連續聽寫設定——輕按行為（tapAction）、停頓判定（vadSilenceMs）、閒置自動結束（listenIdleTimeoutSec）；tapAction=off 時淡化後兩項；setSelect 補上設定檔中不在選項內的值

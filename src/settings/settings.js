@@ -18,6 +18,7 @@ async function load() {
   setToggle('llmEnabled', s.llmEnabled);
   setToggle('launchAtStartup', s.launchAtStartup);
   setToggle('autoSubmit', s.autoSubmit);
+  setToggle('keyboardHotkeys', s.keyboardHotkeys !== false);
   setRadio(s.copyToClipboard === true);
   $('tapAction').value = s.tapAction || 'continuous';
   setSelect('vadSilenceMs', s.vadSilenceMs, 1200);
@@ -26,6 +27,7 @@ async function load() {
   setSelect('reviseMouseTrigger', s.reviseMouseTrigger, 'off');
   setSelect('submitToggleMouse', s.submitToggleMouse, 'off');
   syncMouseConflict();
+  syncKbdDim();
   syncTapDim();
   renderRoles();
   syncKeyField();
@@ -97,6 +99,15 @@ function syncMouseConflict() {
     $(box).textContent = c && c.box === box ? c.msg : '';
   }
   return c;
+}
+// 鍵盤熱鍵關閉：F 鍵說明列變淡、F10 提示隱藏；且必須設語音輸入的滑鼠鍵，否則沒有任何方式能開始說話
+function syncKbdDim() {
+  const on = $('keyboardHotkeys').classList.contains('on');
+  document.querySelectorAll('.kbdRow').forEach((row) => { row.style.opacity = on ? '1' : '.4'; });
+  $('submitHkHint').style.display = on ? '' : 'none';
+  const warn = !on && $('mouseTrigger').value === 'off';
+  $('triggerWarn').textContent = warn ? '鍵盤熱鍵關閉時，「滑鼠觸發：語音輸入」要選一顆鍵，不然沒辦法開始說話' : '';
+  return warn;
 }
 function setToggle(id, on) { $(id).classList.toggle('on', on === true); }
 function setRadio(copy) {
@@ -215,6 +226,8 @@ $('llmEnabled').addEventListener('click', function () { this.classList.toggle('o
 $('launchAtStartup').addEventListener('click', function () { this.classList.toggle('on'); });
 $('twConvert').addEventListener('click', function () { this.classList.toggle('on'); });
 $('autoSubmit').addEventListener('click', function () { this.classList.toggle('on'); });
+$('keyboardHotkeys').addEventListener('click', function () { this.classList.toggle('on'); syncKbdDim(); });
+$('mouseTrigger').addEventListener('change', syncKbdDim);
 $('tapAction').addEventListener('change', syncTapDim);
 $('mouseTrigger').addEventListener('change', syncMouseConflict);
 $('reviseMouseTrigger').addEventListener('change', syncMouseConflict);
@@ -250,6 +263,7 @@ function setStatus(cls, txt) { $('keyStatus').className = 'status ' + cls; $('ke
 $('btnSave').addEventListener('click', async () => {
   const conflict = syncMouseConflict();
   if (conflict) { $(conflict.box).scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
+  if (syncKbdDim()) { $('triggerWarn').scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
   const payload = {
     sttProvider: getSeg('sttSeg'),
     openaiApiKey: s.openaiApiKey || '',
@@ -262,6 +276,7 @@ $('btnSave').addEventListener('click', async () => {
     activeRoleId,
     copyToClipboard: $('optCopy').classList.contains('sel'),
     autoSubmit: $('autoSubmit').classList.contains('on'),
+    keyboardHotkeys: $('keyboardHotkeys').classList.contains('on'),
     launchAtStartup: $('launchAtStartup').classList.contains('on'),
     tapAction: $('tapAction').value,
     vadSilenceMs: Number($('vadSilenceMs').value),

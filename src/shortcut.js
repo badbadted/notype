@@ -1,7 +1,7 @@
 // 全域快捷鍵 + 錄音流程控制（按住 F9 錄音、放開停止；輕按 F9 切換連續聽寫）
 const { globalShortcut, clipboard } = require('electron');
 const koffi = require('koffi');
-const { getStore } = require('./store');
+const { getStore, triggerLabel } = require('./store');
 const {
   startRecording, stopRecording, cancelRecording, startListening, stopListening, saveAudioBuffer, cleanupTempAudio,
 } = require('./recorder');
@@ -166,6 +166,12 @@ function waitForRelease(vks) {
 function registerShortcut() {
   globalShortcut.unregisterAll();
   const store = getStore();
+  if (store.get('keyboardHotkeys') === false) {
+    // 鍵盤熱鍵不使用：一個都不註冊、也不跑自我修復（避免改搶 F10／Alt+Z 等別的鍵），只留滑鼠觸發鍵
+    log.info('[shortcut] 鍵盤熱鍵已設為不使用，只啟用滑鼠觸發鍵');
+    applyMouseTrigger();
+    return null;
+  }
   const wanted = store.get('hotkey') || 'F9';
 
   const candidates = [wanted, ...FALLBACKS.filter((f) => f !== wanted)];
@@ -488,7 +494,7 @@ async function runInsertPipeline(audioBuffer, { ext = 'webm', continuous = false
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function hotkeyLabel() {
-  return (getStore().get('hotkey') || 'F9').replace(/CommandOrControl|Control/gi, 'Ctrl');
+  return triggerLabel(getStore());
 }
 
 function showListeningOverlay(detail) {
